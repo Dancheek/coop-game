@@ -67,15 +67,35 @@ class GameServer(Server):
 		start_new_thread(self.CommandInput, ())
 
 	def generate_tile_map(self):
-		self.tile_map = [[0 for i in range(MAP_WIDTH)] for i in range(MAP_HEIGHT)]
-		x = randint(0, MAP_WIDTH - 1)
-		y = randint(0, MAP_HEIGHT - 1)
-		for i in range(WALLS_COUNT):
+		correct = False
+		while (not correct):
+			self.tile_map = [[0 for i in range(MAP_WIDTH)] for i in range(MAP_HEIGHT)]
+			x = randint(0, MAP_WIDTH - 1)
+			y = randint(0, MAP_HEIGHT - 1)
+			for i in range(WALLS_COUNT):
+				while (self.tile_map[y][x] != 0):
+					x = randint(0, MAP_WIDTH - 1)
+					y = randint(0, MAP_HEIGHT - 1)
+				self.tile_map[y][x] = 1
+
 			while (self.tile_map[y][x] != 0):
 				x = randint(0, MAP_WIDTH - 1)
 				y = randint(0, MAP_HEIGHT - 1)
-			self.tile_map[y][x] = 1
+			correct = self.map_check([i[:] for i in self.tile_map], x, y)
 
+	def map_check(self, tile_map, x, y):
+		if (x < 0 or x >= MAP_WIDTH or y < 0 or y >= MAP_HEIGHT):
+			return
+		if (tile_map[y][x] == 1 or tile_map[y][x] == 2):
+			return
+		tile_map[y][x] = 2
+		for coord in ((0, -1), (-1, 0), (0, 1), (1, 0)):
+			self.map_check(tile_map, x + coord[0], y + coord[1])
+		for i in range(MAP_HEIGHT):
+			for j in range(MAP_WIDTH):
+				if (tile_map[i][j] == 0):
+					return False
+		return True
 	def print_prompt(self):
 		print("[{}] server> ".format(self.players_count), end='')
 
