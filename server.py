@@ -46,10 +46,16 @@ class ServerChannel(Channel):
 			self.y += data['d_y']
 			self.PassOn(data)
 
+	def Network_set_tile(self, data):
+		if (self.id == self._server.active_player):
+			self._server.tile_map[data['y']][data['x']] = data['tile']
+			self.PassOn(data)
+
 	# ---------------------------------------------
 
 	def Network_end_turn(self, data):
-		self._server.next_turn()
+		if (self.id == self._server.active_player):
+			self._server.next_turn()
 
 	def Close(self):
 		self._server.DelPlayer(self)
@@ -133,7 +139,7 @@ class GameServer(Server):
 				self.active_player_num = 0
 		self.active_player = list(self.players.keys())[self.active_player_num].id
 		self.SendToAll({'action': 'active_player',
-						'id': self.active_player})
+							'id': self.active_player})
 
 	def AddPlayer(self, player):
 		print("{} {} connected".format(player.nickname, str(player.addr)))

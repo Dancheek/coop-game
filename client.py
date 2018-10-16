@@ -52,6 +52,10 @@ class Client(ConnectionListener, Game):
 	def end_turn(self):
 		connection.Send({"action": "end_turn"})
 
+	def set_tile(self, x, y, tile):
+		connection.Send({"action": "set_tile", 'x': x, 'y': y, 'tile': tile})
+		self.tile_map[y][x] = tile
+
 	# ------------ Network callbacks ------------
 
 #	def Network(self, data):
@@ -71,11 +75,18 @@ class Client(ConnectionListener, Game):
 		self.players[data["id"]]["x"] += data["d_x"] # * delta_time
 		self.players[data["id"]]["y"] += data["d_y"] # * delta_time
 
+	def Network_set_tile(self, data):
+		self.tile_map[data['y']][data['x']] = data['tile']
+
 	def Network_get_id(self, data):
 		self.id = data["id"]
 
 	def Network_active_player(self, data):
 		self.active_player = data['id']
+		print(self.active_player, self.id)
+		if (self.active_player == self.id):
+			self.made_step = False
+			self.magic_casted = False
 
 	def Network_players(self, data):
 		# print(data)
