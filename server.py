@@ -151,11 +151,12 @@ class GameServer(Server):
 											"x":		p.x,
 											"y":		p.y,
 											"hp":		p.hp}) for p in self.players])})
-		player.Send({"action": "tile_map",
-						"tile_map": self.tile_map})
 
 		player.Send({"action": "get_id", "id": str(self.id)})
 		self.SendPlayers()
+
+		player.Send({"action": "tile_map",
+			   "tile_map": self.tile_map})
 
 	def DelPlayer(self, player):
 		print("{} {} deleted".format(player.nickname, str(player.addr)))

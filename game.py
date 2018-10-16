@@ -1,5 +1,6 @@
 from sys import exit
 import pygame
+from fov import get_fov
 
 BG_COLOR = (37, 37, 37)
 EMPTY_COLOR = (64, 64, 64)
@@ -54,6 +55,8 @@ class Game:
 		self.magic = FIRE_MAGIC
 		self.clock = pygame.time.Clock()
 		self.tile_map = [[0 for i in range(MAP_WIDTH)] for i in range(MAP_HEIGHT)]
+		self.fov_map = [[1] * MAP_WIDTH for i in range(MAP_HEIGHT)]
+		self.fov_radius = 20
 
 	def is_wall(self, x, y):
 		if (self.tile_map[y][x] == 1):
@@ -109,14 +112,21 @@ class Game:
 	def draw_tile_map(self):
 		for i in range(MAP_HEIGHT):
 			for j in range(MAP_WIDTH):
-				if (self.tile_map[i][j] == 0):
-					self.draw_block(EMPTY_COLOR, j, i)
-				elif (self.tile_map[i][j] == 1):
-					self.draw_block(WALL_COLOR, j, i)
-				elif (self.tile_map[i][j] == FIRE_MAGIC):
-					self.draw_block(FIRE_COLOR, j, i)
-				elif (self.tile_map[i][j] == FREEZE_MAGIC):
-					self.draw_block(FREEZE_COLOR, j, i)
+				if (self.fov_map[i][j]):
+					if (self.tile_map[i][j] == 0):
+						self.draw_block(EMPTY_COLOR, j, i)
+					elif (self.tile_map[i][j] == 1):
+						self.draw_block(WALL_COLOR, j, i)
+					elif (self.tile_map[i][j] == FIRE_MAGIC):
+						self.draw_block(FIRE_COLOR, j, i)
+					elif (self.tile_map[i][j] == FREEZE_MAGIC):
+						self.draw_block(FREEZE_COLOR, j, i)
+		for i in self.players:
+			if (self.fov_map[self.players[i]['y']][self.players[i]['x']]):
+				if (i == self.active_player):
+					self.draw_block(self.players[i]['color'], self.players[i]['x'], self.players[i]['y'])
+				else:
+					self.draw_small_block(self.players[i]['color'], self.players[i]['x'], self.players[i]['y'])
 
 
 	def main(self, players):
@@ -133,16 +143,11 @@ class Game:
 					not self.made_step):
 						self.change_pos(self.d_x, self.d_y)
 						self.made_step = True
+						self.fov_map = get_fov(self.tile_map, self.x, self.y, self.fov_radius)
 				self.d_x, self.d_y = 0, 0
 
 			self.draw_tile_map()
 			self.draw_sep_line()
-
-			for i in players:
-				if (i == self.active_player):
-					self.draw_block(players[i]['color'], players[i]['x'], players[i]['y'])
-				else:
-					self.draw_small_block(players[i]['color'], players[i]['x'], players[i]['y'])
 
 			if (self.made_step and self.magic_casted and self.id == self.active_player):
 				self.end_turn()
@@ -167,6 +172,7 @@ class Game:
 			if (e.type == pygame.MOUSEBUTTONDOWN):
 				if (e.button == 1):
 					if (self.m_tile_x != None and self.m_tile_y != None and
+						self.fov_map[self.m_tile_y][self.m_tile_x] and
 						self.id == self.active_player and
 						not self.magic_casted):
 							self.set_tile(self.m_tile_x, self.m_tile_y, self.magic)

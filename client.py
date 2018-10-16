@@ -3,6 +3,7 @@ from time import sleep, time
 from game import Game
 from pygame.time import Clock
 from socket import gethostname, gethostbyname
+from fov import get_fov
 
 host = input("host IP address (leave blank for localhost): ")
 if host == "localhost" or host == '':
@@ -83,7 +84,6 @@ class Client(ConnectionListener, Game):
 
 	def Network_active_player(self, data):
 		self.active_player = data['id']
-		print(self.active_player, self.id)
 		if (self.active_player == self.id):
 			self.made_step = False
 			self.magic_casted = False
@@ -113,6 +113,7 @@ class Client(ConnectionListener, Game):
 
 	def Network_tile_map(self, data):
 		self.tile_map = data["tile_map"]
+		self.fov_map = get_fov(self.tile_map, self.x, self.y, self.fov_radius)
 
 	def Network_connected(self, data):
 		self.statusLabel = "connected"
