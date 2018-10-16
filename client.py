@@ -49,6 +49,9 @@ class Client(ConnectionListener, Game):
 		self.y += d_y
 		# print("change_pos", x, y)
 
+	def end_turn(self):
+		connection.Send({"action": "end_turn"})
+
 	# ------------ Network callbacks ------------
 
 #	def Network(self, data):
@@ -70,6 +73,9 @@ class Client(ConnectionListener, Game):
 
 	def Network_get_id(self, data):
 		self.id = data["id"]
+
+	def Network_active_player(self, data):
+		self.active_player = data['id']
 
 	def Network_players(self, data):
 		# print(data)

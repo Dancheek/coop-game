@@ -29,9 +29,6 @@ class ServerChannel(Channel):
 		data.update({"id": self.id})
 		self._server.SendToAll(data)
 
-	def Network_get_ping(self, data):
-		self.Send(data)
-
 	# ------------- Client changing ---------------
 
 	def Network_nickname(self, data):
@@ -44,11 +41,15 @@ class ServerChannel(Channel):
 		self.PassOn(data)
 
 	def Network_change_pos(self, data):
-		self.x += data['d_x']
-		self.y += data['d_y']
-		self.PassOn(data)
+		if (self.id == self._server.active_player):
+			self.x += data['d_x']
+			self.y += data['d_y']
+			self.PassOn(data)
 
 	# ---------------------------------------------
+
+	def Network_end_turn(self, data):
+		self._server.next_turn()
 
 	def Close(self):
 		self._server.DelPlayer(self)
@@ -63,6 +64,8 @@ class GameServer(Server):
 		self.players = WeakKeyDictionary()
 		self.players_count = 0
 		self.generate_tile_map()
+		self.active_player_num = None
+		self.active_player = None
 		print("Server launched")
 		start_new_thread(self.CommandInput, ())
 
@@ -118,6 +121,19 @@ class GameServer(Server):
 
 	def Connected(self, channel, addr):
 		self.AddPlayer(channel)
+		if (self.players_count == 2):
+			self.next_turn()
+
+	def next_turn(self):
+		if (self.active_player_num == None):
+			self.active_player_num = randint(0, 1)
+		else:
+			self.active_player_num += 1
+			if (self.active_player_num == self.players_count):
+				self.active_player_num = 0
+		self.active_player = list(self.players.keys())[self.active_player_num].id
+		self.SendToAll({'action': 'active_player',
+						'id': self.active_player})
 
 	def AddPlayer(self, player):
 		print("{} {} connected".format(player.nickname, str(player.addr)))

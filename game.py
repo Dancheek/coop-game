@@ -39,6 +39,7 @@ class Game:
 		self.x = -1
 		self.y = -1
 		self.hp = 3
+		self.active_player = -1
 		self.tile_map = [[0 for i in range(MAP_WIDTH)] for i in range(MAP_HEIGHT)]
 
 	def is_wall(self, x, y):
@@ -93,7 +94,8 @@ class Game:
 					self.x + self.d_x < MAP_WIDTH and
 					self.y + self.d_y >= 0 and
 					self.y + self.d_y < MAP_HEIGHT and
-					not self.is_wall(self.x + self.d_x, self.y + self.d_y)):
+					not self.is_wall(self.x + self.d_x, self.y + self.d_y) and
+					self.id == self.active_player):
 						self.change_pos(self.d_x, self.d_y)
 				self.d_x, self.d_y = 0, 0
 
@@ -101,9 +103,10 @@ class Game:
 			self.draw_sep_line()
 
 			for i in players:
-				if (i == self.id):
+				if (i == self.active_player):
 					#self.draw_block(players[i]['color'], players[i]['x'], players[i]['y'])
-					self.draw_block(self.color, self.x, self.y)
+					self.draw_block(players[i]['color'], players[i]['x'], players[i]['y'])
+
 				else:
 					self.draw_small_block(players[i]['color'], players[i]['x'], players[i]['y'])
 
@@ -123,6 +126,9 @@ class Game:
 					self.d_x, self.d_y = COORDS[2]
 				if (e.key == pygame.K_d):
 					self.d_x, self.d_y = COORDS[3]
+				if (e.key == pygame.K_SPACE):
+					if (self.active_player == self.id):
+						self.end_turn()
 
 
 class Hub:
