@@ -1,5 +1,5 @@
 from PodSixNet.Connection import connection, ConnectionListener
-from time import sleep, time
+from time import sleep, time as sys_time
 from game import Game
 from pygame.time import Clock
 from socket import gethostname, gethostbyname
@@ -19,9 +19,10 @@ BLUE = (23, 95, 232)
 YELLOW = (241, 219, 23)
 CYAN = (25, 208, 148)
 PINK = (238, 122, 167)
-COLORS = (RED, BLUE, YELLOW, CYAN, PINK)
+VIOLET = (165, 53, 147)
+COLORS = (RED, BLUE, YELLOW, CYAN, PINK, VIOLET)
 
-print("Select color\nred    - 1\nblue   - 2\nyellow - 3\ncyan   - 4\npink   - 5")
+print("Select color\nred    - 1\nblue   - 2\nyellow - 3\ncyan   - 4\npink   - 5\nviolet - 6")
 g_color = COLORS[int(input("color: ")) - 1]
 #g_color = tuple(int(i) for i in input("color: ").split())
 # g_color = (255, 0, 255)
@@ -42,20 +43,26 @@ class Client(ConnectionListener, Game):
 		self.Pump()
 		connection.Pump()
 		self.handle()
-		self.main(self.players)
+		self.main()
 
 	def change_pos(self, d_x, d_y):
 		connection.Send({"action": "change_pos", "d_x": d_x, "d_y": d_y})
 		self.x += d_x
 		self.y += d_y
-		# print("change_pos", x, y)
 
 	def end_turn(self):
 		connection.Send({"action": "end_turn"})
 
 	def set_tile(self, x, y, tile):
 		connection.Send({"action": "set_tile", 'x': x, 'y': y, 'tile': tile})
-		self.tile_map[y][x] = tile
+		#self.tile_map[y][x] = tile
+
+	def cast_magic(self, x, y, magic):
+		connection.Send({"action": "cast_magic", 'x': x, 'y': y, 'magic': magic})
+		self.magic_casted = True
+
+	def set_hp(self, hp):
+		connection.Send({"action": "set_hp", "hp": hp})
 
 	# ------------ Network callbacks ------------
 
@@ -78,6 +85,18 @@ class Client(ConnectionListener, Game):
 
 	def Network_set_tile(self, data):
 		self.tile_map[data['y']][data['x']] = data['tile']
+		self.calc_fov()
+
+	def Network_set_hp(self, data):
+		if (self.id == data['id']):
+			self.hp = data['hp']
+		self.players[data['id']]['hp'] = data['hp']
+
+	def Network_freeze(self, data):
+		self.freezed = True
+
+	def Network_unfreeze(self, data):
+		self.freezed = False
 
 	def Network_get_id(self, data):
 		self.id = data["id"]
@@ -85,17 +104,20 @@ class Client(ConnectionListener, Game):
 	def Network_active_player(self, data):
 		self.active_player = data['id']
 		if (self.active_player == self.id):
-			self.made_step = False
+			self.turn_start_time = sys_time()
+			self.steps = self.max_steps
 			self.magic_casted = False
 
 	def Network_players(self, data):
-		# print(data)
 		self.playersLabel = str(len(data['players'])) + " players"
 		mark = []
 		self.x = data["players"][self.id]['x']
 		self.y = data["players"][self.id]['y']
+		self.calc_fov()
 		self.hp = data["players"][self.id]['hp']
-
+		if (data['force']):
+			self.players = data['players']
+			return
 		for i in data['players']:
 			if i not in self.players:
 				self.players[i] = {'color':		data['players'][i]["color"],
@@ -113,7 +135,7 @@ class Client(ConnectionListener, Game):
 
 	def Network_tile_map(self, data):
 		self.tile_map = data["tile_map"]
-		self.fov_map = get_fov(self.tile_map, self.x, self.y, self.fov_radius)
+		self.calc_fov()
 
 	def Network_connected(self, data):
 		self.statusLabel = "connected"
