@@ -31,7 +31,7 @@ class ServerChannel(Channel):
 		data.update({"id": self.id})
 		self._server.SendToAll(data)
 
-	# ------------- Client changing ---------------
+	# ------------- Network callbacks ---------------
 
 	def Network_nickname(self, data):
 		self.nickname = data['nickname']
@@ -49,8 +49,7 @@ class ServerChannel(Channel):
 			self.PassOn(data)
 
 	def Network_set_hp(self, data):
-		self.hp = data['hp']
-		self.PassOn(data)
+		self._server.set_hp(self, data['hp'])
 
 	def Network_set_tile(self, data):
 		if (self.id == self._server.active_player):
@@ -81,12 +80,11 @@ class ServerChannel(Channel):
 			elif (data['magic'] == FREEZE_MAGIC and tile == FIRE_MAGIC):
 				self._server.set_tile(data['x'], data['y'], EMPTY_TILE)
 
-
-	# ---------------------------------------------
-
 	def Network_end_turn(self, data):
 		if (self.id == self._server.active_player):
 			self._server.next_turn()
+
+	# ---------------------------------------------
 
 	def Close(self):
 		self._server.DelPlayer(self)
@@ -161,6 +159,7 @@ class GameServer(Server):
 				if (tile_map[i][j] == 0):
 					return False
 		return True
+
 	def print_prompt(self):
 		print("[{}] server> ".format(self.players_count), end='')
 
@@ -203,12 +202,14 @@ class GameServer(Server):
 			x = randint(0, MAP_WIDTH - 1)
 			y = randint(0, MAP_HEIGHT - 1)
 			while (self.tile_map[y][x] != 0):
-					x = randint(0, MAP_WIDTH - 1)
-					y = randint(0, MAP_HEIGHT - 1)
+				x = randint(0, MAP_WIDTH - 1)
+				y = randint(0, MAP_HEIGHT - 1)
 			player.x = x
 			player.y = y
 			player.hp = 3
 			if (player.freezed): self.unfreeze_player(player)
+			player.Send({"action": "tile_map",
+						"tile_map": self.tile_map})
 		self.SendPlayers(force = True)
 		self.active_player_num = None
 		self.next_turn()

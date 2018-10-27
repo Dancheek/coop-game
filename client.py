@@ -59,7 +59,7 @@ class Client(ConnectionListener, Game):
 
 	def cast_magic(self, x, y, magic):
 		connection.Send({"action": "cast_magic", 'x': x, 'y': y, 'magic': magic})
-		self.magic_casted = True
+		self.mp -= 1
 
 	def set_hp(self, hp):
 		connection.Send({"action": "set_hp", "hp": hp})
@@ -105,8 +105,8 @@ class Client(ConnectionListener, Game):
 		self.active_player = data['id']
 		if (self.active_player == self.id):
 			self.turn_start_time = sys_time()
-			self.steps = self.max_steps
-			self.magic_casted = False
+			self.ap = self.max_ap
+			self.mp = self.max_mp
 
 	def Network_players(self, data):
 		self.playersLabel = str(len(data['players'])) + " players"
