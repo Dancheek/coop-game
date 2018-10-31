@@ -1,8 +1,11 @@
 from sys import exit
-import pygame
 from fov import get_fov, line
 from time import time as sys_time
+from client import Client
+from PodSixNet.Connection import connection
+from socket import gethostname, gethostbyname
 import image
+import pygame
 
 BG_COLOR = (37, 37, 37)
 EMPTY_COLOR = (50, 50, 50)
@@ -18,20 +21,35 @@ TILE_WIDTH = 32
 SPACE_WIDTH = 8
 TILE_SPACE_WIDTH = TILE_WIDTH + SPACE_WIDTH
 
-MAP_WIDTH = 20
-MAP_HEIGHT = 17
+#MAP_WIDTH = 20
+#MAP_HEIGHT = 17
+#MAP_WIDTH = 9
+#MAP_HEIGHT = 9
+tile_map = [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+			[1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1],
+			[1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 3, 3, 3, 0, 0, 1],
+			[1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 3, 0, 0, 1],
+			[1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 1],
+			[1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1],
+			[1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1],
+			[1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1],
+			[1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1],
+			[1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1],
+			[1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1],
+			[1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1],
+			[1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1],
+			[1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1],
+			[1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+			[1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1],
+			[1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1],
+			[1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1],
+			[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]]
 
 TURN_TIME = 15
 
-#SCREEN_SIZE = (MAP_WIDTH * TILE_SPACE_WIDTH + SPACE_WIDTH,
-#				(MAP_HEIGHT + 2) * TILE_SPACE_WIDTH + SPACE_WIDTH * 3)
 SCREEN_SIZE = (800, 800)
 TIME_LINE_WIDTH = 800
-#TIME_LINE_WIDTH = MAP_WIDTH * TILE_SPACE_WIDTH - SPACE_WIDTH
-#TIME_LINE_WIDTH = MAP_WIDTH * TILE_WIDTH - SPACE_WIDTH
 
-STATS_Y_POS = 500
-#STATS_Y_POS = MAP_HEIGHT * TILE_SPACE_WIDTH + SPACE_WIDTH * 3
 SCREEN_CENTER_X = SCREEN_SIZE[0] // 2
 SCREEN_CENTER_Y = SCREEN_SIZE[1] // 2
 
@@ -53,35 +71,70 @@ class Game:
 		self.playersLabel = "0 players"
 		self.statusLabel = "connecting"
 		global screen
-		screen = pygame.display.set_mode(SCREEN_SIZE)
+		screen = pygame.display.set_mode(SCREEN_SIZE)#, pygame.FULLSCREEN)
 		pygame.display.set_caption("Tile game")
+		self.connected = False
+		#self.connect(g_host, g_port)
+
+		self.color = (255, 255, 255)
+		self.nickname = ''
 
 		self.d_x = 0
 		self.d_y = 0
 
-		self.x = -1
-		self.y = -1
+		self.x = 4
+		self.y = 4
 
 		self.m_tile_x = None
 		self.m_tile_y = None
 
-		self.ap = 0
-		self.max_ap = 3
+		self.max_ap = 9
+		self.ap = self.max_ap
 
-		self.hp = 3
 		self.max_hp = 3
+		self.hp = self.max_hp
 
-		self.mp = 2
 		self.max_mp = 2
+		self.mp = self.max_mp
 		self.magic = FIRE_MAGIC
 
 		self.freezed = False
-		self.active_player = -1
+		self.id = 1
+		self.active_player = 1
+		self.turn_start_time = sys_time()
+		self.players = {}
+		self.objects = {}
 		self.clock = pygame.time.Clock()
 
-		self.tile_map = [[0 for i in range(MAP_WIDTH)] for i in range(MAP_HEIGHT)]
-		self.fov_map = [[0] * MAP_WIDTH for i in range(MAP_HEIGHT)]
-		self.fov_radius = 7
+		self.tile_map = tile_map#[[0 for i in range(MAP_WIDTH)] for i in range(MAP_HEIGHT)]
+		self.map_width = len(self.tile_map[0])
+		self.map_height = len(self.tile_map)
+		self.fov_map = [[0] * self.map_width for i in range(self.map_height)]
+		self.fov_radius = 9
+		self.calc_fov()
+
+	def change_pos(self, d_x, d_y):
+		self.x += d_x
+		self.y += d_y
+		if (self.connected):
+			self.client.change_pos(d_x, d_y)
+		if (self.tile_map[self.y][self.x] == FIRE_MAGIC):
+			self.hp -= 1
+			self.set_hp(self.hp)
+			self.set_tile(self.x, self.y, EMPTY_TILE)
+
+	def cast_magic(self, x, y, magic):
+		self.mp -= 1
+		if (self.connected):
+			self.client.cast_magic(x, y, magic)
+
+	def end_turn(self):
+		if (self.connected):
+			self.client.end_turn()
+		else:
+			self.mp = self.max_mp
+			self.ap = self.max_ap
+			self.turn_start_time = sys_time()
 
 	def tile_to_screen(self, tile_x, tile_y, center_x=None, center_y=None):
 		if (center_x == None): center_x = self.x
@@ -99,20 +152,19 @@ class Game:
 		return sys_time() - self.turn_start_time
 
 	def is_wall(self, x, y):
+		if (x < 0):					return True
+		if (x >= self.map_width):	return True
+		if (y < 0):					return True
+		if (y >= self.map_height):	return True
+
 		if (self.tile_map[y][x] == WALL_TILE or self.tile_map[y][x] == FREEZE_MAGIC):
 			return True
 		return False
 
 	def draw_block(self, color, x, y, y_bounded=True):
-		#x *= TILE_WIDTH
-		#if (y_bounded):
-		#	y = y * TILE_WIDTH
 		screen.fill(color, (x, y, TILE_WIDTH, TILE_WIDTH))
 
 	def draw_small_block(self, color, x, y):
-		#x *= TILE_WIDTH
-		#if (y_bounded):
-		#	y *= TILE_WIDTH
 		screen.fill(color, (x + SPACE_WIDTH,
 							y + SPACE_WIDTH,
 							TILE_WIDTH - SPACE_WIDTH * 2,
@@ -130,23 +182,23 @@ class Game:
 
 	def draw_stats(self):
 		bar_width = 60
-		bar_height = 15
-		bar_sep = 25
+		bar_height = 16
+		bar_sep = 28
 		for i in range(self.max_hp):
-			if (i < self.hp): screen.fill(HP_COLOR, (10 + i * bar_width, SCREEN_SIZE[1] - bar_sep*3, bar_width, bar_height))
-			else: screen.fill(EMPTY_COLOR, (10 + i * bar_width, SCREEN_SIZE[1] - bar_sep*3, bar_width, bar_height))
+			if (i < self.hp): screen.fill(HP_COLOR, (12 + i * bar_width, SCREEN_SIZE[1] - bar_sep*3, bar_width, bar_height))
+			else: screen.fill(EMPTY_COLOR, (12 + i * bar_width, SCREEN_SIZE[1] - bar_sep*3, bar_width, bar_height))
 
 		for i in range(self.max_mp):
-			if (i < self.mp): screen.fill(MP_COLOR, (10 + i * bar_width, SCREEN_SIZE[1] - bar_sep*2, bar_width, bar_height))
-			else: screen.fill(EMPTY_COLOR, (10 + i * bar_width, SCREEN_SIZE[1] - bar_sep*2, bar_width, bar_height))
+			if (i < self.mp): screen.fill(MP_COLOR, (12 + i * bar_width, SCREEN_SIZE[1] - bar_sep*2, bar_width, bar_height))
+			else: screen.fill(EMPTY_COLOR, (12 + i * bar_width, SCREEN_SIZE[1] - bar_sep*2, bar_width, bar_height))
 
 		for i in range(self.max_ap):
-			if (i < self.ap): screen.fill(AP_COLOR, (10 + i * bar_width, SCREEN_SIZE[1] - bar_sep, bar_width, bar_height))
-			else: screen.fill(EMPTY_COLOR, (10 + i * bar_width, SCREEN_SIZE[1] - bar_sep, bar_width, bar_height))
+			if (i < self.ap): screen.fill(AP_COLOR, (12 + i * bar_width, SCREEN_SIZE[1] - bar_sep, bar_width, bar_height))
+			else: screen.fill(EMPTY_COLOR, (12 + i * bar_width, SCREEN_SIZE[1] - bar_sep, bar_width, bar_height))
 
 	def draw_tile_map(self):
-		for i in range(MAP_HEIGHT):
-			for j in range(MAP_WIDTH):
+		for i in range(self.map_height):
+			for j in range(self.map_width):
 				if (self.fov_map[i][j]):
 					if (self.tile_map[i][j] == EMPTY_TILE):
 						screen.blit(image.floor, self.tile_to_screen(j, i))
@@ -159,7 +211,7 @@ class Game:
 		for i in self.players:
 			if (self.fov_map[self.players[i]['y']][self.players[i]['x']]):
 				if (self.id != i):
-					screen.blit(image.player, self.tile_to_screen(self.players[i]['x'], self.players[i]['y']))
+					screen.blit(image.object, self.tile_to_screen(self.players[i]['x'], self.players[i]['y']))
 #				if (i == self.active_player):
 #					self.draw_block(self.players[i]['color'], self.players[i]['x'], self.players[i]['y'])
 #				else:
@@ -173,45 +225,45 @@ class Game:
 		self.clock.tick(60)
 		screen.fill(BG_COLOR)
 
+		#print(self.id, self.active_player)
 		if (self.d_x != 0 or self.d_y != 0):
-			if (self.x + self.d_x >= 0 and
-				self.x + self.d_x < MAP_WIDTH and
-				self.y + self.d_y >= 0 and
-				self.y + self.d_y < MAP_HEIGHT and
-				not self.is_wall(self.x + self.d_x, self.y + self.d_y) and
-				self.id == self.active_player and
-				self.ap > 0 and
-				not self.freezed):
+			if (not self.is_wall(self.x + self.d_x, self.y + self.d_y) and not self.freezed):
+				if (self.connected):
+					if (self.client.turn_based):
+						if (self.ap > 0 and self.id == self.active_player):
+							self.ap -= 1
+							self.change_pos(self.d_x, self.d_y)
+							self.calc_fov()
+					else:
+						self.change_pos(self.d_x, self.d_y)
+						self.calc_fov()
+				else:
 					self.change_pos(self.d_x, self.d_y)
-					self.ap -= 1
 					self.calc_fov()
-					if (self.tile_map[self.y][self.x] == FIRE_MAGIC):
-						self.hp -= 1
-						self.set_hp(self.hp)
-						self.set_tile(self.x, self.y, EMPTY_TILE)
 			self.d_x, self.d_y = 0, 0
 
 		self.draw_tile_map()
-#		if (self.m_tile_x != None and self.m_tile_y != None):
-#			for tile in (line(self.x, self.y, self.m_tile_x, self.m_tile_y)):
-#				self.draw_small_block((255, 255, 255), *self.tile_to_screen(*tile))
-		self.draw_time_line()
-
-		if (self.id == self.active_player):
-			if (self.ap == 0 and self.mp == 0):
-				self.end_turn()
-			if (self.get_time_from_turn_start() > TURN_TIME):
-				self.end_turn()
+		#if (self.m_tile_x != None and self.m_tile_y != None):
+		#	for tile in (line(self.x, self.y, self.m_tile_x, self.m_tile_y)):
+		#		self.draw_small_block((255, 255, 255), *self.tile_to_screen(*tile))
+		if (self.connected and self.client.turn_based):
+			self.draw_time_line()
+			if (self.id == self.active_player):
+				if (self.ap == 0 and self.mp == 0):
+					self.end_turn()
+				if (self.get_time_from_turn_start() > TURN_TIME):
+					self.end_turn()
 		self.draw_stats()
 		screen.blit(font.render(str(round(self.clock.get_fps())), 1, (255, 255, 255)), (SCREEN_SIZE[0] - 22, SCREEN_SIZE[1] - 20))
 		pygame.display.flip()
 
 	def handle(self):
+		keys_pressed = pygame.key.get_pressed()
 		m_x, m_y = pygame.mouse.get_pos()
 		self.m_tile_x, self.m_tile_y = self.screen_to_tile(m_x, m_y)
-		if (self.m_tile_x < 0 or self.m_tile_x >= MAP_WIDTH):
+		if (self.m_tile_x < 0 or self.m_tile_x >= self.map_width):
 			self.m_tile_x = None
-		if (self.m_tile_y < 0 or self.m_tile_y >= MAP_HEIGHT):
+		if (self.m_tile_y < 0 or self.m_tile_y >= self.map_height):
 			self.m_tile_y = None
 
 		for e in pygame.event.get():
@@ -229,9 +281,8 @@ class Game:
 			if (e.type == pygame.KEYDOWN):
 				if (e.key == pygame.K_SPACE):
 					self.end_turn()
-				if (e.key == pygame.K_LCTRL):
-					self.hp -= 1
-					self.set_hp(self.hp)
+				if (e.key == pygame.K_RETURN):
+					self.connect(g_host, g_port)
 				if (e.key == pygame.K_w):
 					self.d_x, self.d_y = COORDS[0]
 				if (e.key == pygame.K_a):
@@ -245,23 +296,23 @@ class Game:
 				if (e.key == pygame.K_2):
 					self.magic = FREEZE_MAGIC
 
+				if (e.key == pygame.K_F4):
+					if (keys_pressed[pygame.K_LALT]): exit()
+
+	def connect(self, host, port):
+		if (not self.connected):
+			self.client = Client(self, g_host, g_port)
+			self.connected = True
+
 if (__name__ == "__main__"):
-	print(123)
+	g_host = input("host IP address (leave blank for localhost): ")
+	if (g_host == ''):
+		g_host = gethostbyname(gethostname())
+	g_port = 40327
+	game = Game()
+	while (True):
+		if (game.connected):
+			game.client.Loop()
+		game.handle()
+		game.main()
 
-
-class Hub:
-	def __init__(self):
-		global screen
-		screen = pygame.display.set_mode(SCREEN_SIZE)
-		pygame.display.set_caption("Tile game")
-		self.ip = ''
-
-	def main(self):
-		screen.fill(BG_COLOR)
-		pygame.display.flip()
-
-	def handle(self):
-		for e in pygame.event.get():
-			if (e.type == pygame.KEYDOWN):
-				if (e.key == K_RETURN):
-					pass
