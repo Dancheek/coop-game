@@ -6,6 +6,8 @@ from socket import gethostbyname, gethostname
 from _thread import start_new_thread
 from random import randint
 
+import modloader
+
 MAP_WIDTH = 20
 MAP_HEIGHT = 17
 WALLS_COUNT = 60
@@ -23,11 +25,13 @@ game_hub = [[1, 1, 1, 1, 1, 1, 1, 1, 1],
 			[1, 1, 1, 0, 0, 0, 0, 0, 1],
 			[1, 1, 1, 1, 1, 1, 1, 1, 1]]
 
-class ServerChannel(Channel):
+class ServerChannel(Channel): # player representation on server
 	def __init__(self, *args, **kwargs):
 		Channel.__init__(self, *args, **kwargs)
 		self.id = str(self._server.NextId())
 		self.nickname = None
+		self.stats = self._server.player_stats
+		self.stats_max = self._server.player_stats_max
 		self.x = 5
 		self.y = 2
 		self.hp = 3
@@ -39,25 +43,32 @@ class ServerChannel(Channel):
 		data.update({"id": self.id})
 		self._server.SendToAll(data)
 
+	def send_self(self):
+		self.Send({"action": "self",
+					"x": self.x,
+					"y": self.y,
+					"stats": self.stats})
+
+	def set_pos(self, x, y):
+		self.x = x
+		self.y = y
+		self._server.objects[self.id]['x'] = x
+		self._server.objects[self.id]['y'] = y
+
 	# ------------- Network callbacks ---------------
 
 	def Network_nickname(self, data):
 		self.nickname = data['nickname']
-		print("{} has joined".format(self.nickname))
+		info = "{} has joined".format(self.nickname)
+		print(info)
+		self._server.send_message(info)
 		self.PassOn(data)
-
-	#def Network_color(self, data):
-	#	self.color = data['color']
-	#	self.PassOn(data)
 
 	def Network_change_pos(self, data):
 		if ((not self._server.turn_based) or (self._server.turn_based and self.id == self._server.active_player)):
-			self.x += data['d_x']
-			self.y += data['d_y']
-			self.PassOn(data)
-
-	def Network_set_hp(self, data):
-		self._server.set_hp(self, data['hp'])
+			self.set_pos(self.x + data['d_x'], self.y + data['d_y'])
+			self.send_self()
+			self._server.send_objects()
 
 	def Network_set_tile(self, data):
 		if ((not self._server.turn_based) or (self.turn_based and self.id == self._server.active_player)):
@@ -68,25 +79,37 @@ class ServerChannel(Channel):
 		target_player = None
 		for player in list(self._server.players.keys()):
 			if (player.x == data['x'] and player.y == data['y']): target_player = player
-		if (target_player != None):
-			if (data['magic'] == FIRE_MAGIC):
-				if (target_player.freezed):
-					self._server.unfreeze_player(target_player)
-				else:
-					self._server.hit_player(target_player)
-			elif (data['magic'] == FREEZE_MAGIC):
-				self._server.freeze_player(target_player)
+		if (self.stats['mana'] < 1):
+			self._server.send_message('!> Not enough mana', self)
 		else:
-			tile = self._server.tile_map[data['y']][data['x']]
+			self.stats['mana'] -= 1
+			self.send_self()
+			self._server.set_tile(data['x'], data['y'], data['magic'])
 
-			if (tile == EMPTY_TILE):
-				self._server.set_tile(data['x'], data['y'], data['magic'])
+		#if (target_player != None):
+		#	if (data['magic'] == FIRE_MAGIC):
+		#		if (target_player.freezed):
+		#			self._server.unfreeze_player(target_player)
+		#		else:
+		#			self._server.hit_player(target_player)
+		#	elif (data['magic'] == FREEZE_MAGIC):
+		#		self._server.freeze_player(target_player)
+		#else:
+		#	tile = self._server.tile_map[data['y']][data['x']]
 
-			elif (data['magic'] == FIRE_MAGIC and tile == FREEZE_MAGIC):
-				self._server.set_tile(data['x'], data['y'], EMPTY_TILE)
+		#	if (tile == EMPTY_TILE):
+		#		self._server.set_tile(data['x'], data['y'], data['magic'])
 
-			elif (data['magic'] == FREEZE_MAGIC and tile == FIRE_MAGIC):
-				self._server.set_tile(data['x'], data['y'], EMPTY_TILE)
+		#	elif (data['magic'] == FIRE_MAGIC and tile == FREEZE_MAGIC):
+		#		self._server.set_tile(data['x'], data['y'], EMPTY_TILE)
+
+		#	elif (data['magic'] == FREEZE_MAGIC and tile == FIRE_MAGIC):
+		#		self._server.set_tile(data['x'], data['y'], EMPTY_TILE)
+
+	def Network_message(self, data):
+		text = "<{}> ".format(self.nickname) + data['message']
+		print(text)
+		self._server.send_message(text)
 
 	def Network_end_turn(self, data):
 		if (self.id == self._server.active_player):
@@ -105,6 +128,10 @@ class GameServer(Server):
 		Server.__init__(self, *args, **kwargs)
 		self.id = 0
 		self.players = WeakKeyDictionary()
+
+		self.player_stats = {}
+		self.player_stats_max = {}
+
 		self.objects = {}
 		self.players_count = 0
 		#self.generate_tile_map()
@@ -112,8 +139,19 @@ class GameServer(Server):
 		self.active_player_num = None
 		self.active_player = None
 		self.turn_based = False
+
+		self.install_mods()
+
 		print("Server launched")
 		start_new_thread(self.command_input, ())
+
+	def install_mods(self):
+		print("loading mods...")
+		self.mods = modloader.load_mods('server_mods')
+		for mod in self.mods:
+			print("{} v.{}: {}".format(mod.name, mod.version, mod.description))
+			self.player_stats.update(mod.stats)
+			self.player_stats_max.update(mod.stats_max)
 
 	def main(self):
 		if (self.tile_map == game_hub and self.players_count >= 2):
@@ -131,18 +169,13 @@ class GameServer(Server):
 	def hit_player(self, player):
 		self.set_hp(player, player.hp - 1)
 
-	def freeze_player(self, player):
-		player.freezed = True
-		player.Send({"action": "freeze"})
-
-	def unfreeze_player(self, player):
-		player.freezed = False
-		player.Send({"action": "unfreeze"})
-
-	def set_hp(self, player, hp):
+	def set_hp(self, player, hp): # deprecated
 		player.hp = hp
 		self.SendToAll({"action": "set_hp", 'id': player.id, 'hp': player.hp})
 		if (hp == 0): self.start_round()
+
+	def set_stat(self, player, stat_name, value):
+		player.stats[stat_name] = value
 
 	def set_tile(self, x, y, tile):
 		self.tile_map[y][x] = tile
@@ -201,9 +234,7 @@ class GameServer(Server):
 		return self.id
 
 	def Connected(self, channel, addr):
-		self.AddPlayer(channel)
-		#if (self.players_count == 2):
-		#	self.start_round()#self.next_turn()
+		self.add_player(channel)
 
 	def next_turn(self):
 		if (self.active_player_num == None):
@@ -227,17 +258,16 @@ class GameServer(Server):
 			while (self.tile_map[y][x] != 0):
 				x = randint(0, MAP_WIDTH - 1)
 				y = randint(0, MAP_HEIGHT - 1)
-			player.x = x
-			player.y = y
+			player.set_pos(x, y)
 			player.hp = 3
-			if (player.freezed): self.unfreeze_player(player)
 			player.Send({"action": "tile_map",
 						"tile_map": self.tile_map})
-		self.SendPlayers(force = True)
+		self.send_objects()
+		self.send_players()
 		self.active_player_num = None
 		self.next_turn()
 
-	def AddPlayer(self, player):
+	def add_player(self, player):
 		print("{} {} connected".format(player.nickname, str(player.addr)))
 		self.players[player] = True # {player_obj: True}
 		self.objects[player.id] = {"type":		"player",
@@ -245,14 +275,9 @@ class GameServer(Server):
 									"x":		player.x,
 									"y":		player.y}
 		self.players_count += 1
-		#player.Send({"action": "initial",
-		#			"players": dict([(p.id, {"nickname":p.nickname,
-		#									"x":		p.x,
-		#									"y":		p.y,
-		#									"hp":		p.hp}) for p in self.players])})
+		player.send_self()
 
 		player.Send({"action": "get_id", "id": str(self.id)})
-		#self.SendPlayers()
 		self.send_objects()
 
 		player.Send({"action": "tile_map",
@@ -275,13 +300,17 @@ class GameServer(Server):
 		self.SendToAll({"action": "objects",
 						"objects": self.objects})
 
-	def SendPlayers(self, force = False):
-		self.SendToAll({"action": "players",
-						"force": force,
-						"players": dict([(p.id, {"nickname":p.nickname,
-												"x":		p.x,
-												"y":		p.y,
-												"hp":		p.hp}) for p in self.players])})
+	def send_players(self):
+		for i in self.players:
+			i.send_self()
+
+	def send_message(self, message, player=None):
+		if (player == None):
+			self.SendToAll({"action": "message",
+							"message": message})
+		else:
+			player.Send({"action": "message",
+						"message": message})
 
 	def SendToAll(self, data):
 		for i in self.players:

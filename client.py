@@ -4,11 +4,6 @@ from time import sleep, time as sys_time
 from socket import gethostname, gethostbyname
 from fov import get_fov
 
-#host = input("host IP address (leave blank for localhost): ")
-#if host == "localhost" or host == '':
-g_host = gethostbyname(gethostname())
-g_port = 40327#input("port: ")
-
 #g_nickname = input("nickname: ")
 #if g_nickname == '':
 g_nickname = 'anon'
@@ -21,18 +16,12 @@ PINK = (238, 122, 167)
 VIOLET = (165, 53, 147)
 COLORS = (RED, BLUE, YELLOW, CYAN, PINK, VIOLET)
 
-#print("Select color\nred    - 1\nblue   - 2\nyellow - 3\ncyan   - 4\npink   - 5\nviolet - 6")
-#g_color = COLORS[int(input("color: ")) - 1]
-#g_color = tuple(int(i) for i in input("color: ").split())
-g_color = (255, 0, 255)
-
 class Client(ConnectionListener):
 	def __init__(self, game, host, port):
 		self.game = game
 		self.game.id = None
 		self.Connect((host, port))
 		connection.Send({"action": "nickname", "nickname": g_nickname})
-		#connection.Send({"action": "color", "color": g_color})
 
 		self.game.players = {}
 		self.turn_based = False
@@ -47,6 +36,9 @@ class Client(ConnectionListener):
 	def change_pos(self, d_x, d_y):
 		connection.Send({"action": "change_pos", "d_x": d_x, "d_y": d_y})
 
+	def send_message(self, message):
+		connection.Send({"action": "message", "message": message})
+
 	def end_turn(self):
 		connection.Send({"action": "end_turn"})
 
@@ -56,9 +48,6 @@ class Client(ConnectionListener):
 
 	def cast_magic(self, x, y, magic):
 		connection.Send({"action": "cast_magic", 'x': x, 'y': y, 'magic': magic})
-
-	def set_hp(self, hp):
-		connection.Send({"action": "set_hp", "hp": hp})
 
 	# ------------ Network callbacks ------------
 
@@ -74,17 +63,6 @@ class Client(ConnectionListener):
 	#def Network_color(self, data):
 	#	self.game.players[data["id"]]["color"] = data["color"]
 
-	def Network_change_pos(self, data):
-		# delta_time = self.game.clock.tick()
-		print(self.game.objects)
-		print(self.game.x, self.game.y)
-		if (data['id'] == self.game.id):
-			self.game.x += data['d_x']
-			self.game.y += data['d_y']
-		else:
-			self.game.objects[data["id"]]["x"] += data["d_x"] # * delta_time
-			self.game.objects[data["id"]]["y"] += data["d_y"] # * delta_time
-
 	def Network_set_tile(self, data):
 		self.game.tile_map[data['y']][data['x']] = data['tile']
 		self.game.calc_fov()
@@ -94,12 +72,6 @@ class Client(ConnectionListener):
 			self.game.hp = data['hp']
 		self.game.players[data['id']]['hp'] = data['hp']
 
-	def Network_freeze(self, data):
-		self.game.freezed = True
-
-	def Network_unfreeze(self, data):
-		self.game.freezed = False
-
 	def Network_get_id(self, data):
 		self.game.id = data["id"]
 
@@ -107,36 +79,21 @@ class Client(ConnectionListener):
 		self.game.active_player = data['id']
 		if (self.game.active_player == self.game.id):
 			self.game.turn_start_time = sys_time()
-			self.game.ap = self.game.max_ap
-			self.game.mp = self.game.max_mp
-
-	def Network_players(self, data):
-		self.game.playersLabel = str(len(data['players'])) + " players"
-		mark = []
-		self.game.x = data["players"][self.game.id]['x']
-		self.game.y = data["players"][self.game.id]['y']
-		self.game.calc_fov()
-		self.game.hp = data["players"][self.game.id]['hp']
-		if (data['force']):
-			self.game.players = data['players']
-			return
-		for i in data['players']:
-			if i not in self.game.players:
-				self.game.players[i] = {'nickname': data["players"][i]["nickname"],
-										"x":		data["players"][i]["x"],
-										"y":		data["players"][i]["y"],
-										"hp":		data["players"][i]["hp"]}
-
-		for i in self.game.players:
-			if i not in data['players'].keys():
-				mark.append(i)
-
-		for m in mark:
-			del self.game.players[m]
+			self.game.stats['mana'] = self.game.stats_max['mana']
+			self.game.stats['action'] = self.game.stats_max['action']
 
 	def Network_objects(self, data):
-		self.game.objects = data
+		self.game.objects = data['objects']
 		#print(self.game.objects)
+
+	def Network_self(self, data):
+		self.game.x = data['x']
+		self.game.y = data['y']
+		self.game.stats = data['stats']
+		self.game.calc_fov()
+
+	def Network_message(self, data):
+		self.game.messages.append(data['message'])
 
 	def Network_tile_map(self, data):
 		self.game.tile_map = data["tile_map"]
@@ -148,17 +105,17 @@ class Client(ConnectionListener):
 		self.turn_based = data['turn_based']
 
 	def Network_connected(self, data):
-		self.game.statusLabel = "connected"
+		print('connected')
+		self.game.on_connect()
 
 	def Network_error(self, data):
 		print(data['error'])
-		import traceback
-		traceback.print_exc()
-		self.game.statusLabel = data['error'][1]
+		self.game.connecting = False
+		self.game.send_message('!> ' + str(data['error']))
 		connection.Close()
 
 	def Network_disconnected(self, data):
-		self.game.statusLabel = "disconnected"
+		self.game.connected = False
 
 	def Launch(self):
 		while True:
