@@ -1,0 +1,34 @@
+name		= "turn"
+version		= '0.0.1'
+description	= "test turn based system"
+
+stats = {'action'	: 4,
+		'active'	: True}
+
+stats_max = {'action'	: 4}
+
+bars = {'action': {'color'	: (243, 205, 48),
+					'max'	: 4}}
+
+def server_change_pos(api, root, d_x, d_y):
+	if (root.stats['action'] > 0):
+		root.stats['action'] -= 1
+		if (root.stats['action'] == 0):
+			root.stats['active'] = False
+			api.send_message('!> turn ended', player=root, color=(0, 255, 255))
+			next_player = api.next_player(root)
+			next_player.stats['action'] = next_player.stats_max['action']
+			next_player.stats['active'] = True
+			api.send_message('!> turn started', player=next_player, color=(0, 255, 255))
+			next_player.send_self()
+
+def server_on_connect(api, root):
+	root.stats['active'] = False
+	if (api.players_count == 2):
+		player = api.random_player()
+		player.stats['active'] = True
+		api.send_message('!> turn started', player=player, color=(0, 255, 255))
+		player.send_self()
+	else:
+		api.send_message('!> waiting for players', player=root, color = (0, 255, 255))
+

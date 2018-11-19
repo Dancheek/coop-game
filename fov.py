@@ -8,7 +8,7 @@ _octants = (( 1,  0,  0,  1),
 			( 1,  0,  0, -1))
 
 
-def get_fov(tile_map, cx, cy, r, blocking_tiles = [1]):
+def get_fov(tile_map, cx, cy, r):
 	height = len(tile_map)
 	width = len(tile_map[0])
 
@@ -69,8 +69,7 @@ def get_fov(tile_map, cx, cy, r, blocking_tiles = [1]):
 							wall = True
 					else:
 						fov[_y][_x] = True
-						if (tile_map[_y][_x] in blocking_tiles): wall = True
-						else: wall = False
+						wall = tile_map[_y][_x].blocks_view
 					#wall = visit(cx + x * xx + y * xy, cy + x * yx + y * yy)
 
 					if wall:
@@ -92,7 +91,7 @@ def get_fov(tile_map, cx, cy, r, blocking_tiles = [1]):
 
 						# The second to last cell in the column may block the
 						# last cell.
-						if (y == old_max_y - 1 and (2 * y + 1) * old_max_dx 
+						if (y == old_max_y - 1 and (2 * y + 1) * old_max_dx
 							> old_max_dy * max_cell_dx):
 							 break
 

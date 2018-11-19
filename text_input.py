@@ -1,6 +1,7 @@
-import pygame
+import pyperclip
 from sys import exit
 
+import pygame.font
 pygame.font.init()
 
 class TextInput:
@@ -63,25 +64,25 @@ class TextInput:
 						self.text = ''
 						self.cursor_pos = 0
 
+				elif (e.key == pygame.K_ESCAPE):
+					self.clear()
+
 				elif (e.key == pygame.K_RETURN):
 					if (self.text == ''):
 						self.clear()
-						return 0
+						return
 					if (len(self.history) == 0 or len(self.history) > 0 and self.history[-1] != self.text):
 						self.history.append(self.text)
 						self.history_selected = len(self.history)
-					text = self.text
-					self.clear()
-					return text
-
-				elif (e.key == pygame.K_ESCAPE):
-					self.clear()
-					return 0
 
 				elif (e.key == pygame.K_TAB): # TODO autocomplete
 					pass
 
-				else:
+				elif (e.key == pygame.K_v and pygame.key.get_mods() & pygame.KMOD_CTRL):
+					self.text = self.text[:self.cursor_pos] + pyperclip.paste() + self.text[self.cursor_pos:]
+					self.cursor_pos += len(pyperclip.paste())
+
+				elif (not pygame.key.get_mods() & pygame.KMOD_CTRL):
 					self.text = self.text[:self.cursor_pos] + e.unicode + self.text[self.cursor_pos:]
 					self.cursor_pos += len(e.unicode)
 
@@ -91,7 +92,7 @@ class TextInput:
 		if (self.repeat_event != None):
 			self.repeat_time += self.clock.get_time()
 			if (self.repeat_time > 300):
-				self.repeat_time -= 50
+				self.repeat_time -= 40
 				pygame.event.post(self.repeat_event)
 		self.clock.tick()
 
@@ -107,6 +108,12 @@ class TextInput:
 
 	def get_text(self):
 		return self.text
+
+	def try_autocomplete(self, variants):
+		for variant in variants:
+			if (variant.startswith(self.text[1:])):
+				self.text = '/' + variant + ' '
+				self.cursor_pos = len(variant) + 2
 
 	def clear(self):
 		self.text = ''
