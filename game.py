@@ -12,6 +12,7 @@ import text_input
 import loader
 import api
 import tile
+#import world
 
 BG_COLOR = (37, 37, 37)
 EMPTY_COLOR = (50, 50, 50)
@@ -57,6 +58,7 @@ tile_map = [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
 			[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]]
 
 pygame.display.init()
+pygame.display.set_caption("Tile game")
 
 SCREEN_SIZE = (800, 800)
 FULL_SCREEN_SIZE = (pygame.display.Info().current_w,
@@ -86,7 +88,6 @@ class Game:
 	def __init__(self):
 		global screen
 		screen = pygame.display.set_mode(screen_size)
-		pygame.display.set_caption("Tile game")
 		#pygame.mouse.set_cursor((8, 8), (4, 4), (0, 0, 0, 0, 0, 0, 0, 0), (0, 0, 60, 60, 60, 60, 0, 0))
 		self.is_fullscreen = False
 
@@ -189,11 +190,13 @@ class Game:
 		self.map_height = len(self.tile_map)
 		self.calc_fov()
 
-	def load_world(self, name):
-		self.load_tile_map(loader.load_world(name))
+	def load_world(self, world_name):
+		self.load_tile_map(loader.load_world(world_name))
+		#self.world = world.load(name)
 
-	def save_world(self, name):
-		loader.save_world(tile.to_dict(self.tile_map), name)
+	def save_world(self, world_name):
+		loader.save_world(tile.to_dict(self.tile_map), world_name)
+		#self.world.save(world_name)
 
 	def tile_to_screen(self, tile_x, tile_y, center_x=None, center_y=None):
 		if (center_x == None): center_x = self.x
