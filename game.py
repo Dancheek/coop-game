@@ -12,7 +12,7 @@ import text_input
 import loader
 import api
 import tile
-#import world
+import world
 
 BG_COLOR = (37, 37, 37)
 EMPTY_COLOR = (50, 50, 50)
@@ -35,7 +35,6 @@ FIRE_COLOR = (225, 106, 0)
 FREEZE_COLOR = (0, 148, 255)
 
 TILE_WIDTH = 32
-SPACE_WIDTH = 8
 
 tile_map = [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
 			[1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1],
@@ -143,6 +142,8 @@ class Game:
 		self.fov_radius = 12
 		self.install_mods()
 
+		api.tiles = self.tiles
+
 		self.load_world('default_world')
 
 		self.add_message('press ENTER to open chat', color=YELLOW)
@@ -184,19 +185,16 @@ class Game:
 		for img in self.images:
 			self.images[img] = image.from_str(self.images[img])
 
-	def load_tile_map(self, tile_map):
-		self.tile_map = tile.from_dict(tile_map, self.tiles)
-		self.map_width = len(self.tile_map[0])
-		self.map_height = len(self.tile_map)
+	def load_world_from_dict(self, tile_map):
+		self.world = world.World(tile_map)
 		self.calc_fov()
 
 	def load_world(self, world_name):
-		self.load_tile_map(loader.load_world(world_name))
-		#self.world = world.load(name)
+		self.world = world.load(world_name)
+		self.calc_fov()
 
 	def save_world(self, world_name):
-		loader.save_world(tile.to_dict(self.tile_map), world_name)
-		#self.world.save(world_name)
+		self.world.save_as(world_name)
 
 	def tile_to_screen(self, tile_x, tile_y, center_x=None, center_y=None):
 		if (center_x == None): center_x = self.x
@@ -210,15 +208,8 @@ class Game:
 		return ((screen_x - screen_center_x + TILE_WIDTH // 2) // TILE_WIDTH + center_x,
 				(screen_y - screen_center_y + TILE_WIDTH // 2) // TILE_WIDTH + center_y)
 
-	def is_outside(self, x, y):
-		if (x < 0):					return True
-		if (x >= self.map_width):	return True
-		if (y < 0):					return True
-		if (y >= self.map_height):	return True
-		return False
-
 	def calc_fov(self):
-		self.fov_map = get_fov(self.tile_map, self.x, self.y, self.fov_radius)
+		self.fov_map = get_fov(self.world.tile_map, self.x, self.y, self.fov_radius)
 
 	def update_mouse_tile_pos(self):
 		self.m_tile_x, self.m_tile_y = self.screen_to_tile(*pygame.mouse.get_pos())
@@ -266,18 +257,9 @@ class Game:
 		if (self.connected):
 			self.client.interact(x, y)
 		else:
-			self.tile_map[y][x].interact(self)
+			self.world.get_tile(x, y).interact(self)
 
 	# ----------- screen rendering -----------
-
-	def draw_block(self, color, x, y, y_bounded=True):
-		screen.fill(color, (x, y, TILE_WIDTH, TILE_WIDTH))
-
-	def draw_small_block(self, color, x, y):
-		screen.fill(color, (x + SPACE_WIDTH,
-							y + SPACE_WIDTH,
-							TILE_WIDTH - SPACE_WIDTH * 2,
-							TILE_WIDTH - SPACE_WIDTH * 2))
 
 	def draw_tile(self, tile_id, x, y):
 		screen.blit(self.images[tile_id], self.tile_to_screen(x, y))
@@ -307,11 +289,11 @@ class Game:
 												self.bar_y_offset + self.bar_sep * bar, \
 												self.bar_width, self.bar_height))
 
-	def draw_tile_map(self): # TODO rework
-		for i in range(self.map_height):
-			for j in range(self.map_width):
-				if (self.fov_map[i][j]):
-					self.draw_tile(self.tile_map[i][j].image, j, i)
+	def draw_tile_map(self):
+		for y in range(self.world.height):
+			for x in range(self.world.width):
+				if (self.fov_map[y][x]):
+					self.draw_tile(self.world.get_tile(x, y).image, x, y)
 		for i in self.objects:
 			if (self.fov_map[self.objects[i]['y']][self.objects[i]['x']]):
 				if (self.id != i):
@@ -325,11 +307,13 @@ class Game:
 		screen.fill(BG_COLOR)
 
 		if (self.d_x != 0 or self.d_y != 0):
-			if (not self.is_outside(self.x + self.d_x, self.y + self.d_y) and self.stats['active']):
-				self.tile_map[self.y + self.d_y][self.x + self.d_x].on_try_to_step(self)
-				if (not self.tile_map[self.y + self.d_y][self.x + self.d_x].is_wall):
+			new_x = self.x + self.d_x
+			new_y = self.y + self.d_y
+			if (not self.world.is_outside(new_x, new_y) and self.stats['active']):
+				self.world.get_tile(new_x, new_y).on_try_to_step(self)
+				if (not self.world.get_tile(new_x, new_y).is_wall):
 					self.change_pos(self.d_x, self.d_y)
-					self.tile_map[self.y][self.x].on_step(self)
+					self.world.get_tile(self.x, self.y).on_step(self)
 			self.d_x, self.d_y = 0, 0
 
 		self.draw_tile_map()
@@ -407,11 +391,11 @@ class Game:
 			for e in events:
 				if (e.type == pygame.MOUSEBUTTONDOWN):
 					if (e.button == 1): # LMB
-						if (not self.is_outside(self.m_tile_x, self.m_tile_y) and \
+						if (not self.world.is_outside(self.m_tile_x, self.m_tile_y) and \
 							self.fov_map[self.m_tile_y][self.m_tile_x]):
 								self.cast_magic(self.m_tile_x, self.m_tile_y, self.magic)
 					if (e.button == 3): # RMB
-						if (not self.is_outside(self.m_tile_x, self.m_tile_y)):
+						if (not self.world.is_outside(self.m_tile_x, self.m_tile_y)):
 							self.interact(self.m_tile_x, self.m_tile_y)
 							self.calc_fov()
 
@@ -501,10 +485,10 @@ class Game:
 	def command_nickname(self, *args):
 		if (len(args) == 2):
 			self.nickname = args[1]
-			self.send_message(f'Your nickname - "{self.nickname}"')
+			self.add_message(f'Your nickname - "{self.nickname}"')
 		else:
-			self.send_message(f'Your nickname - "{self.nickname}"')
-			self.send_message('Usage: /nick <new nickname>', color=YELLOW)
+			self.add_message(f'Your nickname - "{self.nickname}"')
+			self.add_message('Usage: /nick <new nickname>', color=YELLOW)
 
 
 g_localhost = gethostbyname(gethostname())

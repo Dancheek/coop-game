@@ -34,7 +34,6 @@ class Client(ConnectionListener):
 
 	def set_tile(self, x, y, tile):
 		self.connection.Send({"action": "set_tile", 'x': x, 'y': y, 'tile': tile})
-		#self.game.tile_map[y][x] = tile
 
 	def cast_magic(self, x, y, magic):
 		self.connection.Send({"action": "cast_magic", 'x': x, 'y': y, 'magic': magic})
@@ -48,7 +47,7 @@ class Client(ConnectionListener):
 	#	print('network:', data)
 
 	def Network_set_tile(self, data):
-		self.game.tile_map[data['y']][data['x']] = self.game.tiles[data['tile']['id']](data['tile'])
+		self.game.world.set_tile(data['x'], data['y'], data['tile'])
 		self.game.calc_fov()
 
 	def Network_objects(self, data):
@@ -65,8 +64,8 @@ class Client(ConnectionListener):
 	def Network_message(self, data):
 		self.game.add_message(data['message']['text'], data['message']['color'])
 
-	def Network_tile_map(self, data):
-		self.game.load_tile_map(data['tile_map'])
+	def Network_world(self, data):
+		self.game.load_world_from_dict(data['world'])
 
 	def Network_turn_based(self, data):
 		self.turn_based = data['turn_based']

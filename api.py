@@ -8,3 +8,5 @@ RED = (255, 50, 70)
 
 send_message = None
 send_message_to_all = None
+
+tiles = None

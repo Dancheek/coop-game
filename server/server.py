@@ -9,6 +9,7 @@ from random import randint, choice
 import loader
 import api
 import tile
+import world
 
 MAP_WIDTH = 20
 MAP_HEIGHT = 17
@@ -60,7 +61,7 @@ class ServerChannel(Channel): # player representation on server
 		new_x = self.x + data['d_x']
 		new_y = self.y + data['d_y']
 		if (self.stats['active']):
-			tile_updated = self._server.tile_map[new_y][new_x].on_try_to_step(self)
+			tile_updated = self._server.world.get_tile(new_x, new_y).on_try_to_step(self)
 			if (tile_updated):
 				self._server.update_tile(new_x, new_y)
 
@@ -73,7 +74,7 @@ class ServerChannel(Channel): # player representation on server
 
 	def Network_set_tile(self, data):
 		if ((not self._server.turn_based) or (self.turn_based and self.id == self._server.active_player)):
-			self._server.tile_map[data['y']][data['x']] = data['tile']
+			self._server.world.set_tile(data['x'], data['y'], data['tile'])
 			self._server.send_to_all(data)
 
 	def Network_cast_magic(self, data):
@@ -91,7 +92,7 @@ class ServerChannel(Channel): # player representation on server
 		self._server.send_message_to_all(text)
 
 	def Network_interact(self, data):
-		tile_updated = self._server.tile_map[data['y']][data['x']].interact(self)
+		tile_updated = self._server.world.get_tile(data['x'], data['y']).interact(self)
 		if (tile_updated):
 			self._server.update_tile(data['x'], data['y'])
 
@@ -124,6 +125,8 @@ class GameServer(Server):
 
 		self.install_mods()
 
+		api.tiles = self.tiles
+
 		self.load_world('default_world')
 
 		print("Server launched")
@@ -139,9 +142,7 @@ class GameServer(Server):
 			self.tiles.update(mod.tiles)
 
 	def load_world(self, name):
-		self.tile_map = tile.from_dict(loader.load_world(name), self.tiles)
-		self.map_width = len(self.tile_map[0])
-		self.map_height = len(self.tile_map)
+		self.world = world.load(name)
 
 	def get_player(self, id):
 		for player in list(self.players.keys()):
@@ -162,43 +163,12 @@ class GameServer(Server):
 	def set_stat(self, player, stat_name, value):
 		player.stats[stat_name] = value
 
-	def set_tile(self, x, y, tile):
-		self.tile_map[y][x] = tile
-		self.tile_updated(x, y)
+	#def set_tile(self, x, y, tile):
+	#	self.tile_map[y][x] = tile
+	#	self.tile_updated(x, y)
 
 	def update_tile(self, x, y):
-		self.send_to_all({"action": "set_tile", 'x': x, 'y': y, 'tile': self.tile_map[y][x].to_dict()})
-
-	def generate_tile_map(self):
-		correct = False
-		while (not correct):
-			self.tile_map = [[0 for i in range(MAP_WIDTH)] for i in range(MAP_HEIGHT)]
-			x = randint(0, MAP_WIDTH - 1)
-			y = randint(0, MAP_HEIGHT - 1)
-			for i in range(WALLS_COUNT):
-				while (self.tile_map[y][x] != 0):
-					x = randint(0, MAP_WIDTH - 1)
-					y = randint(0, MAP_HEIGHT - 1)
-				self.tile_map[y][x] = 1
-
-			while (self.tile_map[y][x] != 0):
-				x = randint(0, MAP_WIDTH - 1)
-				y = randint(0, MAP_HEIGHT - 1)
-			correct = self.map_check([i[:] for i in self.tile_map], x, y)
-
-	def map_check(self, tile_map, x, y):
-		if (x < 0 or x >= MAP_WIDTH or y < 0 or y >= MAP_HEIGHT):
-			return
-		if (tile_map[y][x] == 1 or tile_map[y][x] == 2):
-			return
-		tile_map[y][x] = 2
-		for coord in ((0, -1), (-1, 0), (0, 1), (1, 0)):
-			self.map_check(tile_map, x + coord[0], y + coord[1])
-		for i in range(MAP_HEIGHT):
-			for j in range(MAP_WIDTH):
-				if (tile_map[i][j] == 0):
-					return False
-		return True
+		self.send_to_all({"action": "set_tile", 'x': x, 'y': y, 'tile': self.world.get_tile(x, y).to_dict()})
 
 	# --------- console interaction -------------
 
@@ -240,8 +210,8 @@ class GameServer(Server):
 
 		self.send_objects()
 
-		player.Send({"action": "tile_map",
-					"tile_map": tile.to_dict(self.tile_map)})
+		player.Send({"action": "world",
+					"world": self.world.to_dict()})
 		self.send_message_to_all('{} has joined'.format(player.nickname), color=(255, 255, 0))
 
 		for mod in self.mods:
