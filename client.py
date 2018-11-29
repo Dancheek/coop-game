@@ -14,7 +14,7 @@ COLORS = (RED, BLUE, YELLOW, CYAN, PINK, VIOLET)
 class Client(ConnectionListener):
 	def __init__(self, game, host, port):
 		self.game = game
-		self.game.id = None
+		self.game.uuid = None
 		self.Connect((host, port))
 		self.connection = connection
 		self.connection.Send({'action': 'join', 'nickname': game.nickname})
@@ -51,11 +51,15 @@ class Client(ConnectionListener):
 		self.game.calc_fov()
 
 	def Network_objects(self, data):
-		self.game.objects = data['objects']
-		#print(self.game.objects)
+		objs = data['objects']
+		for obj in objs:
+			if (obj in self.game.world.objects):
+				self.game.world.get_object(obj).from_dict(objs[obj])
+			else:
+				self.game.world.objects[obj] = self.game.object_classes[objs[obj]['id']](objs[obj])
 
 	def Network_self(self, data):
-		self.game.id = data['id']
+		self.game.uuid = data['uuid']
 		self.game.x = data['x']
 		self.game.y = data['y']
 		self.game.stats = data['stats']

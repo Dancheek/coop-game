@@ -1,6 +1,12 @@
+
+# Module with some const and links to other objects
+
+screen = None
+
 game = None
 server = None
-screen = None
+
+world = None
 
 WHITE = (255, 255, 255)
 YELLOW = (255, 255, 0)
@@ -9,4 +15,5 @@ RED = (255, 50, 70)
 send_message = None
 send_message_to_all = None
 
-tiles = None
+tile_classes = None
+object_classes = None

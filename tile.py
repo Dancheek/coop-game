@@ -31,8 +31,8 @@ class Tile:
 				'x'		: self.x,
 				'y'		: self.y}
 
-def from_dict(tile_map, tiles):
-	return [[tiles[tile['id']](tile) for tile in row] for row in tile_map]
+def from_dict(tile_map, tile_classes):
+	return [[tile_classes[tile['id']](tile) for tile in row] for row in tile_map]
 
 def to_dict(tile_map):
 	return [[tile.to_dict() for tile in row] for row in tile_map]

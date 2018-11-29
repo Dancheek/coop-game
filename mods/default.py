@@ -1,4 +1,5 @@
 from tile import Tile
+from object import Object
 import api
 
 name		= "default"
@@ -35,16 +36,17 @@ bars = {'health': {'color'	: (243, 16, 76),
 def server_main():
 	pass
 
-def server_cast_magic(root, target, magic, x, y):
+def server_cast_magic(player, target, magic, x, y):
 	if (target == None):
-		api.server.send_message(f'!!> x: {x}, y: {y}', player=root)
+		api.server.send_message(f'!!> x: {x}, y: {y}', player=player)
 	else:
-		api.server.send_message(f'!!> hit {target.nickname} with {magic}', player=root)
-		api.server.send_message(f'!!> hitted by {root.nickname} with {magic}', player=target)
+		api.server.send_message(f'!!> hit {target.nickname} with {magic}', player=player)
+		api.server.send_message(f'!!> hitted by {player.nickname} with {magic}', player=target)
 
-def server_on_connect(root):
-	api.server.send_message('#> Hi there', player=root, color=(255, 255, 0))
+def server_on_connect(player):
+	api.server.send_message('#> Hi there', player=player, color=(255, 255, 0))
 
+# --------------- tiles ----------------
 
 class TileFloor(Tile):
 	def __init__(self, *args):
@@ -95,24 +97,30 @@ class TileDoor(Tile):
 		self.blocks_view = self.closed
 
 
-tiles = {'default:wall': Tile,
-		'default:floor': TileFloor,
-		'default:door': TileDoor}
+tile_classes = {'default:wall': Tile,
+				'default:floor': TileFloor,
+				'default:door': TileDoor}
 
-def command_load_world(*args):
-	if (len(args) != 2):
-		api.send_message('Usage: /load_world <world name>', color=api.RED)
+# --------------- objects ---------------
+
+class ObjectPlayer(Object):
+	def __init__(self, *args):
+		super().__init__(*args)
+		if (type(args[0]) == dict):
+			self.from_dict(args[0])
+		self.image = 'default:player'
+
+object_classes = {'default:object': Object,
+					'default:player': ObjectPlayer}
+
+# --------------- commands ---------------
+
+def command_spawn(*args, player=None):
+	if (len(args) != 4):
+		api.send_message('Usage: /spawn <object_id> <x> <y>', color=api.RED, player=player)
 	else:
-		api.game.load_world(args[1])
-		api.send_message(f'World "{args[1]}" loaded', color=api.YELLOW)
+		api.world.spawn(args[1], int(args[2]), int(args[3]))
+		api.send_message(f'Object spawned at {args[2]} {args[3]}', player=player)
 
-def command_save_world(*args):
-	if (len(args) != 2):
-		api.send_message('Usage: /save_world <world name>', color=api.RED)
-	else:
-		api.game.save_world(args[1])
-		api.send_message(f'World saved as "{args[1]}"', color=api.YELLOW)
-
-chat_commands = {'load_world': command_load_world,
-				 'save_world': command_save_world}
+chat_commands = {'spawn': command_spawn}
 

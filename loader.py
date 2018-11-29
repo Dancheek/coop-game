@@ -24,8 +24,8 @@ def load_mod(filename):
 	return mod
 
 def load_world(name):
-	with open(name, 'rb') as file:
+	with open('worlds/' + name, 'rb') as file:
 		return pickle.load(file)
 
 def save_world(world, name):
-	pickle.dump(world, open(name, 'wb'))
+	pickle.dump(world, open('worlds/' + name, 'wb'))

@@ -75,7 +75,7 @@ class TextInput:
 						self.history.append(self.text)
 						self.history_selected = len(self.history)
 
-				elif (e.key == pygame.K_TAB): # TODO autocomplete
+				elif (e.key == pygame.K_TAB):
 					pass
 
 				elif (e.key == pygame.K_v and pygame.key.get_mods() & pygame.KMOD_CTRL):

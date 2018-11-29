@@ -36,26 +36,6 @@ FREEZE_COLOR = (0, 148, 255)
 
 TILE_WIDTH = 32
 
-tile_map = [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-			[1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1],
-			[1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1],
-			[1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1],
-			[1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-			[1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1],
-			[1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1],
-			[1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1],
-			[1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1],
-			[1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1],
-			[1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1],
-			[1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1],
-			[1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1],
-			[1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1],
-			[1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-			[1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1],
-			[1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1],
-			[1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1],
-			[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]]
-
 pygame.display.init()
 pygame.display.set_caption("Tile game")
 
@@ -99,6 +79,7 @@ class Game:
 		self.connecting = False
 
 		self.nickname = 'player'
+		self.uuid = '00000000-0000-0000-0000-000000000000'
 
 		self.d_x = 0
 		self.d_y = 0
@@ -121,16 +102,18 @@ class Game:
 		self.bar_x_offset = 12
 		self.bar_y_offset = 12
 
-		self.tiles = {}
+		self.tile_classes = {}
+		self.object_classes = {}
 
 		self.chat_commands = {'c': self.command_connect,
 								'q': self.command_leave,
 								'exit': self.command_exit,
 								'nick': self.command_nickname,
-								'help': self.command_help}
+								'help': self.command_help,
+								'load_world': self.command_load_world,
+								'save_world': self.command_save_world}
 
 		self.magic = FIRE_MAGIC
-		self.objects = {}
 		self.clock = pygame.time.Clock()
 		self.text_input = text_input.TextInput(font)
 		self.state = 'normal'
@@ -142,7 +125,8 @@ class Game:
 		self.fov_radius = 12
 		self.install_mods()
 
-		api.tiles = self.tiles
+		api.tile_classes = self.tile_classes
+		api.object_classes = self.object_classes
 
 		self.load_world('default_world')
 
@@ -151,6 +135,7 @@ class Game:
 		self.add_message('/c <ip>          - connect to server', color=(127, 127, 127))
 		self.add_message('/q               - abort connection', color=(127, 127, 127))
 		self.add_message('/nick <nickname> - change nickname', color=(127, 127, 127))
+		self.add_message('/help            - available commands', color=(127, 127, 127))
 		self.add_message('====================================')
 
 	def toggle_fullscreen(self):
@@ -180,7 +165,8 @@ class Game:
 			self.stats_max.update(mod.stats_max)
 			self.bars.update(mod.bars)
 			self.images.update(mod.images)
-			self.tiles.update(mod.tiles)
+			self.tile_classes.update(mod.tile_classes)
+			self.object_classes.update(mod.object_classes)
 			self.chat_commands.update(mod.chat_commands)
 		for img in self.images:
 			self.images[img] = image.from_str(self.images[img])
@@ -191,6 +177,7 @@ class Game:
 
 	def load_world(self, world_name):
 		self.world = world.load(world_name)
+		api.world = self.world
 		self.calc_fov()
 
 	def save_world(self, world_name):
@@ -237,7 +224,9 @@ class Game:
 		self.calc_fov()
 
 	def send_message(self, text, color=WHITE):
-		if (text[0] == '/'):
+		if (text == '/q'):
+			self.exec_chat_command('q')
+		elif (not self.connected and text[0] == '/'):
 			self.exec_chat_command(text[1:])
 		else:
 			if (self.connected):
@@ -252,7 +241,6 @@ class Game:
 		else:
 			self.add_message('command not found: ' + text.split()[0])
 
-
 	def interact(self, x, y):
 		if (self.connected):
 			self.client.interact(x, y)
@@ -261,8 +249,8 @@ class Game:
 
 	# ----------- screen rendering -----------
 
-	def draw_tile(self, tile_id, x, y):
-		screen.blit(self.images[tile_id], self.tile_to_screen(x, y))
+	def draw_image(self, image_id, x, y):
+		screen.blit(self.images[image_id], self.tile_to_screen(x, y))
 
 	def draw_messages(self, lifetime=5):
 		if (lifetime == None):
@@ -289,16 +277,18 @@ class Game:
 												self.bar_y_offset + self.bar_sep * bar, \
 												self.bar_width, self.bar_height))
 
+	def draw_objects(self):
+		for obj in self.world.objects:
+			if (obj != self.uuid and self.fov_map[self.world.objects[obj].y][self.world.objects[obj].x]):
+				self.draw_image(self.world.objects[obj].image, self.world.objects[obj].x, self.world.objects[obj].y)
+		screen.blit(self.images['default:player'], (screen_center_x - TILE_WIDTH // 2, screen_center_y - TILE_WIDTH // 2))
+
+
 	def draw_tile_map(self):
 		for y in range(self.world.height):
 			for x in range(self.world.width):
 				if (self.fov_map[y][x]):
-					self.draw_tile(self.world.get_tile(x, y).image, x, y)
-		for i in self.objects:
-			if (self.fov_map[self.objects[i]['y']][self.objects[i]['x']]):
-				if (self.id != i):
-					self.draw_tile('default:object', self.objects[i]['x'], self.objects[i]['y'])
-		screen.blit(self.images['default:player'], (screen_center_x - TILE_WIDTH // 2, screen_center_y - TILE_WIDTH // 2))
+					self.draw_image(self.world.get_tile(x, y).image, x, y)
 
 	# --------------- main loop ----------------
 
@@ -317,8 +307,9 @@ class Game:
 			self.d_x, self.d_y = 0, 0
 
 		self.draw_tile_map()
+		self.draw_objects()
 		if (self.state == 'normal'):
-			self.draw_tile('default:selection', self.m_tile_x, self.m_tile_y)
+			self.draw_image('default:selection', self.m_tile_x, self.m_tile_y)
 		#if (self.m_tile_x != None and self.m_tile_y != None):
 		#	for tile in (line(self.x, self.y, self.m_tile_x, self.m_tile_y)):
 		#		self.draw_small_block(WHITE, *self.tile_to_screen(*tile))
@@ -408,6 +399,10 @@ class Game:
 						self.state = 'player_menu'
 					if (e.key == pygame.K_RETURN):
 						self.state = 'text_input'
+					if (e.key == pygame.K_SLASH):
+						self.state = 'text_input'
+						self.text_input.text = '/'
+						self.text_input.cursor_pos = 1
 					if (e.key == pygame.K_w):
 						self.d_x, self.d_y = COORDS[0]
 					if (e.key == pygame.K_a):
@@ -439,7 +434,6 @@ class Game:
 			self.connected = False
 			self.client.connection.Close()
 			self.load_world('default_world')
-			self.objects = {}
 			self.x = 4
 			self.y = 4
 			self.calc_fov()
@@ -489,6 +483,20 @@ class Game:
 		else:
 			self.add_message(f'Your nickname - "{self.nickname}"')
 			self.add_message('Usage: /nick <new nickname>', color=YELLOW)
+
+	def command_load_world(self, *args):
+		if (len(args) != 2):
+			api.send_message('Usage: /load_world <world name>', color=api.RED)
+		else:
+			api.game.load_world(args[1])
+			api.send_message(f'World "{args[1]}" loaded', color=api.YELLOW)
+
+	def command_save_world(self, *args):
+		if (len(args) != 2):
+			api.send_message('Usage: /save_world <world name>', color=api.RED)
+		else:
+			api.game.save_world(args[1])
+			api.send_message(f'World saved as "{args[1]}"', color=api.YELLOW)
 
 
 g_localhost = gethostbyname(gethostname())

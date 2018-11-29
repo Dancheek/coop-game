@@ -5,6 +5,7 @@ from time import sleep
 from socket import gethostbyname, gethostname
 from _thread import start_new_thread
 from random import randint, choice
+from uuid import uuid4
 
 import loader
 import api
@@ -20,19 +21,11 @@ WALL_TILE = 1
 FIRE_MAGIC = 2
 FREEZE_MAGIC = 3
 
-game_hub = [[1, 1, 1, 1, 1, 1, 1, 1, 1],
-			[1, 0, 0, 0, 0, 0, 0, 0, 1],
-			[1, 0, 0, 0, 0, 0, 0, 0, 1],
-			[1, 0, 0, 0, 0, 0, 0, 0, 1],
-			[1, 0, 0, 0, 0, 0, 0, 0, 1],
-			[1, 0, 0, 0, 0, 0, 0, 0, 1],
-			[1, 1, 1, 1, 1, 1, 1, 1, 1]]
-
 class ServerChannel(Channel): # player representation on server
 	def __init__(self, *args, **kwargs):
 		Channel.__init__(self, *args, **kwargs)
-		self.id = str(self._server.next_id())
-		self.nickname = "player_" + self.id
+		self.uuid = str(uuid4())
+		self.nickname = "player_" + self.uuid
 		self.stats = self._server.player_stats.copy()
 		self.stats_max = self._server.player_stats_max.copy()
 		self.x = 5
@@ -40,7 +33,7 @@ class ServerChannel(Channel): # player representation on server
 
 	def send_self(self):
 		self.Send({"action": "self",
-					"id": self.id,
+					"uuid": self.uuid,
 					"x": self.x,
 					"y": self.y,
 					"stats": self.stats})
@@ -48,8 +41,8 @@ class ServerChannel(Channel): # player representation on server
 	def set_pos(self, x, y):
 		self.x = x
 		self.y = y
-		self._server.objects[self.id]['x'] = x
-		self._server.objects[self.id]['y'] = y
+		self._server.world.objects[self.uuid].x = x
+		self._server.world.objects[self.uuid].y = y
 
 	# ------------- Network callbacks ---------------
 
@@ -73,7 +66,7 @@ class ServerChannel(Channel): # player representation on server
 		self.send_self()
 
 	def Network_set_tile(self, data):
-		if ((not self._server.turn_based) or (self.turn_based and self.id == self._server.active_player)):
+		if ((not self._server.turn_based) or (self.turn_based and self.uuid == self._server.active_player)):
 			self._server.world.set_tile(data['x'], data['y'], data['tile'])
 			self._server.send_to_all(data)
 
@@ -87,9 +80,12 @@ class ServerChannel(Channel): # player representation on server
 				mod.server_cast_magic(self, target_player, data['magic'], data['x'], data['y'])
 
 	def Network_message(self, data):
-		text = "<{}> ".format(self.nickname) + data['message']['text']
-		print(text)
-		self._server.send_message_to_all(text)
+		if (data['message']['text'][0] == '/'):
+			self._server.exec_chat_command(data['message']['text'][1:], self)
+		else:
+			text = "<{}> ".format(self.nickname) + data['message']['text']
+			print(text)
+			self._server.send_message_to_all(text)
 
 	def Network_interact(self, data):
 		tile_updated = self._server.world.get_tile(data['x'], data['y']).interact(self)
@@ -99,7 +95,10 @@ class ServerChannel(Channel): # player representation on server
 	# ---------------------------------------------
 
 	def Close(self):
-		self._server.del_player(self)
+		if (self in self._server.players):
+			self._server.del_player(self)
+		else:
+			del self._server.waiting_for_join[self]
 
 
 class GameServer(Server):
@@ -111,23 +110,26 @@ class GameServer(Server):
 		api.send_message = self.send_message
 		api.send_message_to_all = self.send_message_to_all
 
-		self.id = 0
 		self.players = WeakKeyDictionary()
 		self.waiting_for_join = WeakKeyDictionary()
 
 		self.player_stats = {'active': True}
 		self.player_stats_max = {}
 
-		self.tiles = {}
+		self.tile_classes = {}
+		self.object_classes = {}
 
-		self.objects = {}
+		self.chat_commands = {'help': self.command_help}
+
 		self.players_count = 0
 
 		self.install_mods()
 
-		api.tiles = self.tiles
+		api.object_classes = self.object_classes
+		api.tile_classes = self.tile_classes
 
 		self.load_world('default_world')
+		api.world = self.world
 
 		print("Server launched")
 		start_new_thread(self.command_input, ())
@@ -139,14 +141,16 @@ class GameServer(Server):
 			print("{} v.{}: {}".format(mod.name, mod.version, mod.description))
 			self.player_stats.update(mod.stats)
 			self.player_stats_max.update(mod.stats_max)
-			self.tiles.update(mod.tiles)
+			self.tile_classes.update(mod.tile_classes)
+			self.object_classes.update(mod.object_classes)
+			self.chat_commands.update(mod.chat_commands)
 
 	def load_world(self, name):
 		self.world = world.load(name)
 
-	def get_player(self, id):
-		for player in list(self.players.keys()):
-			if (player.id == id): return player
+	def get_player(self, uuid):
+		for player in self.players:
+			if (player.uuid == uuid): return player
 		return None
 
 	def next_player(self, player):
@@ -191,49 +195,50 @@ class GameServer(Server):
 
 	# -------------------------------------------
 
-	def next_id(self):
-		self.id += 1
-		return self.id
-
 	def Connected(self, channel, addr):
 		self.waiting_for_join[channel] = True
 
 	def add_player(self, player):
 		del self.waiting_for_join[player]
-		print("{} {} connected".format(player.nickname, str(player.addr)))
-		self.players[player] = True # {player_obj: True}
-		self.objects[player.id] = {"type":		"player",
-									"nickname": player.nickname,
-									"x":		player.x,
-									"y":		player.y}
+		print(f"[info] channel:  {player.addr}")
+		print(f"[info] uuid:     {player.uuid}")
+		print(f"[info] nickname: {player.nickname}")
+		self.players[player] = True
+		self.world.objects[player.uuid] = self.object_classes['default:player']({ \
+											"id":		"default:player",
+											"nickname": player.nickname,
+											"x":		player.x,
+											"y":		player.y,
+											'uuid':		player.uuid})
 		self.players_count += 1
-
-		self.send_objects()
+		player.send_self()
 
 		player.Send({"action": "world",
 					"world": self.world.to_dict()})
+
+		self.send_objects()
+
 		self.send_message_to_all('{} has joined'.format(player.nickname), color=(255, 255, 0))
+		print()
 
 		for mod in self.mods:
 			if (hasattr(mod, 'server_on_connect')):
 				mod.server_on_connect(player)
 
-		player.send_self()
-
 	def del_player(self, player):
-		print("{} {} deleted".format(player.nickname, str(player.addr)))
+		print(f"{player.nickname} {player.addr} deleted")
 		self.players_count -= 1
 		del self.players[player]
-		for obj_id in self.objects:
-			if (obj_id == player.id):
-				del self.objects[obj_id]
+		for obj_id in self.world.objects:
+			if (obj_id == player.uuid):
+				del self.world.objects[obj_id]
 				break
 		self.send_objects()
-		self.send_message_to_all('{} has leaved'.format(player.nickname), color=(255, 255, 0))
+		self.send_message_to_all(f'{player.nickname} has leaved', color=(255, 255, 0))
 
 	def send_objects(self):
 		self.send_to_all({"action": "objects",
-						"objects": self.objects})
+						"objects": self.world.objects_to_dict()})
 
 	def send_players(self):
 		for i in self.players:
@@ -254,6 +259,19 @@ class GameServer(Server):
 	def send_to_all(self, data):
 		for i in self.players:
 			i.Send(data)
+
+	def exec_chat_command(self, text, player):
+		print(f'{player.nickname} issued a command \'{text}\'')
+		if (text.split()[0] in self.chat_commands):
+			self.chat_commands[text.split()[0]](*text.split(), player=player)
+		else:
+			self.send_message('command not found: ' + text.split()[0], color=api.RED, player=player)
+			self.send_message('try /help for command list', color=api.RED, player=player)
+
+	# ---------- chat commands ----------
+
+	def command_help(self, *args, player=None):
+		api.send_message('Пока что тут вообще нет команд', color=api.YELLOW, player=player)
 
 
 host = gethostbyname(gethostname())
