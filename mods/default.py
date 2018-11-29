@@ -117,10 +117,18 @@ object_classes = {'default:object': Object,
 
 def command_spawn(*args, player=None):
 	if (len(args) != 4):
-		api.send_message('Usage: /spawn <object_id> <x> <y>', color=api.RED, player=player)
+		api.send_message('Usage: /spawn <x> <y> <object_id>', color=api.RED, player=player)
 	else:
-		api.world.spawn(args[1], int(args[2]), int(args[3]))
-		api.send_message(f'Object spawned at {args[2]} {args[3]}', player=player)
+		api.world.spawn(int(args[1]), int(args[2]), args[3])
+		api.send_message(f'Object spawned at {args[1]} {args[2]}', player=player)
 
-chat_commands = {'spawn': command_spawn}
+def command_settile(*args, player=None):
+	if (len(args) != 4):
+		api.send_message('Usage: /settile <x> <y> <tile_id>', color=api.RED, player=player)
+	else:
+		api.world.set_tile(int(args[1]), int(args[2]), args[3])
+		api.send_message(f'Tile placed at {args[1]} {args[2]}', player=player)
+
+chat_commands = {'spawn': command_spawn,
+				 'settile': command_settile}
 

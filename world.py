@@ -24,7 +24,12 @@ class World:
 		return self.tile_map[y][x]
 
 	def set_tile(self, x, y, tile):
-		self.tile_map[y][x] = api.tile_classes[tile['id']](tile)
+		if (type(tile) == dict):
+			self.tile_map[y][x] = api.tile_classes[tile['id']](tile)
+		else:
+			self.tile_map[y][x] = api.tile_classes[tile](tile, x, y)
+		if (api.server != None):
+			api.server.update_tile(x, y)
 
 	def is_outside(self, x, y):
 		if (x < 0):					return True
@@ -46,7 +51,7 @@ class World:
 	def get_object(self, uuid):
 		return self.objects[uuid]
 
-	def spawn(self, object_id, x, y):
+	def spawn(self, x, y, object_id):
 		new_object = api.object_classes[object_id](object_id, x, y)
 		self.objects[new_object.uuid] = new_object
 		if (api.server != None):

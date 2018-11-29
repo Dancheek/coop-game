@@ -16,5 +16,7 @@ RED = (255, 50, 70)
 send_message = None
 send_message_to_all = None
 
+exec_chat_command = None
+
 tile_classes = None
 object_classes = None

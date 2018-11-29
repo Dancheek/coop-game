@@ -109,6 +109,7 @@ class GameServer(Server):
 		api.server = self
 		api.send_message = self.send_message
 		api.send_message_to_all = self.send_message_to_all
+		api.exec_chat_command = self.exec_chat_command
 
 		self.players = WeakKeyDictionary()
 		self.waiting_for_join = WeakKeyDictionary()
@@ -166,10 +167,6 @@ class GameServer(Server):
 
 	def set_stat(self, player, stat_name, value):
 		player.stats[stat_name] = value
-
-	#def set_tile(self, x, y, tile):
-	#	self.tile_map[y][x] = tile
-	#	self.tile_updated(x, y)
 
 	def update_tile(self, x, y):
 		self.send_to_all({"action": "set_tile", 'x': x, 'y': y, 'tile': self.world.get_tile(x, y).to_dict()})

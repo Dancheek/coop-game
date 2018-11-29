@@ -74,6 +74,7 @@ class Game:
 		api.game = self
 		api.send_message = self.add_message
 		api.send_message_to_all = self.add_message
+		api.exec_chat_command = self.exec_chat_command
 
 		self.connected = False
 		self.connecting = False
