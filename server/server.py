@@ -181,7 +181,7 @@ class GameServer(Server):
 
 	def command_input(self):
 		while True:
-			self.print_prompt()
+			#self.print_prompt()
 			command = input()
 			self.exec(command)
 
@@ -191,7 +191,7 @@ class GameServer(Server):
 		elif (command == "round"):
 			self.start_round()
 		else:
-			print("command: {}".format(command))
+			self.send_message_to_all(f"[SERVER] {command}", color=api.ORANGE)
 
 	# -------------------------------------------
 
@@ -233,7 +233,8 @@ class GameServer(Server):
 			if (obj_id == player.uuid):
 				del self.world.objects[obj_id]
 				break
-		self.send_objects()
+		self.send_to_all({'action': 'del_object',
+						'object': player.uuid})
 		self.send_message_to_all(f'{player.nickname} has leaved', color=(255, 255, 0))
 
 	def send_objects(self):

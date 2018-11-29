@@ -10,6 +10,7 @@ world = None
 
 WHITE = (255, 255, 255)
 YELLOW = (255, 255, 0)
+ORANGE = (255, 127, 0)
 RED = (255, 50, 70)
 
 send_message = None

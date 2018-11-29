@@ -58,6 +58,9 @@ class Client(ConnectionListener):
 			else:
 				self.game.world.objects[obj] = self.game.object_classes[objs[obj]['id']](objs[obj])
 
+	def Network_del_object(self, data):
+		del self.game.world.objects[data['object']]
+
 	def Network_self(self, data):
 		self.game.uuid = data['uuid']
 		self.game.x = data['x']
