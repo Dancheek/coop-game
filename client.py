@@ -17,7 +17,7 @@ class Client(ConnectionListener):
 		self.game.uuid = None
 		self.Connect((host, port))
 		self.connection = connection
-		self.connection.Send({'action': 'join', 'nickname': game.nickname})
+		self.connection.Send({'action': 'join', 'nickname': game.player.nickname})
 
 	def loop(self):
 		self.Pump()
@@ -61,11 +61,12 @@ class Client(ConnectionListener):
 	def Network_del_object(self, data):
 		del self.game.world.objects[data['object']]
 
+	def Network_self_init(self, data):
+		from object import Player
+		self.game.player = Player(data['dict'])
+
 	def Network_self(self, data):
-		self.game.uuid = data['uuid']
-		self.game.x = data['x']
-		self.game.y = data['y']
-		self.game.stats = data['stats']
+		self.game.player.from_dict(data['dict'])
 		self.game.calc_fov()
 
 	def Network_message(self, data):

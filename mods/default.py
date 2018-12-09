@@ -1,5 +1,5 @@
 from tile import Tile
-from object import Object
+from object import BaseObject, Player
 import api
 
 name		= "default"
@@ -44,7 +44,7 @@ def server_cast_magic(player, target, magic, x, y):
 		api.server.send_message(f'!!> hitted by {player.nickname} with {magic}', player=target)
 
 def server_on_connect(player):
-	api.server.send_message('#> Hi there', player=player, color=(255, 255, 0))
+	api.server.send_message(f'Welcome to the server, {player.nickname}!', player=player, color=api.WHITE)
 
 # --------------- tiles ----------------
 
@@ -91,10 +91,11 @@ class TileDoor(Tile):
 
 	def from_dict(self, d):
 		super().from_dict(d)
-		self.image = d['image']
-		self.closed = d['closed']
 		self.is_wall = self.closed
 		self.blocks_view = self.closed
+
+
+
 
 
 tile_classes = {'default:wall': Tile,
@@ -103,15 +104,8 @@ tile_classes = {'default:wall': Tile,
 
 # --------------- objects ---------------
 
-class ObjectPlayer(Object):
-	def __init__(self, *args):
-		super().__init__(*args)
-		if (type(args[0]) == dict):
-			self.from_dict(args[0])
-		self.image = 'default:player'
-
-object_classes = {'default:object': Object,
-					'default:player': ObjectPlayer}
+object_classes = {'default:object': BaseObject,
+					'default:player': Player}
 
 # --------------- commands ---------------
 
@@ -129,6 +123,12 @@ def command_settile(*args, player=None):
 		api.world.set_tile(int(args[1]), int(args[2]), args[3])
 		api.send_message(f'Tile placed at {args[1]} {args[2]}', player=player)
 
+def command_hit(*args, player=None):
+	api.send_message_to_all('-1 HP for all objects', color=api.YELLOW)
+	for uuid in api.world.objects:
+		api.world.objects[uuid].stats['health'] -= 1
+
 chat_commands = {'spawn': command_spawn,
-				 'settile': command_settile}
+					'settile': command_settile,
+					'hit': command_hit}
 

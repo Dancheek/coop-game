@@ -22,9 +22,11 @@ class Tile:
 		pass
 
 	def from_dict(self, d):
-		self.id = d['id']
-		self.x = d['x']
-		self.y = d['y']
+		for attr in d:
+			setattr(self, attr, d[attr])
+		#self.id = d['id']
+		#self.x = d['x']
+		#self.y = d['y']
 
 	def to_dict(self):
 		return {'id'	: self.id,

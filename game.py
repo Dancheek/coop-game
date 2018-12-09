@@ -12,6 +12,7 @@ import text_input
 import loader
 import api
 import tile
+from object import Player
 import world
 
 BG_COLOR = (37, 37, 37)
@@ -79,8 +80,16 @@ class Game:
 		self.connected = False
 		self.connecting = False
 
-		self.nickname = 'player'
-		self.uuid = '00000000-0000-0000-0000-000000000000'
+		self.player = Player({"id":			"default:player",
+								"nickname": 'player',
+								"stats":	{'active': True},
+								"stats_max":{},
+								"x":		4,
+								"y":		4,
+								'uuid':		'00000000-0000-0000-0000-000000000000'})
+
+		#self.nickname = 'player'
+		#self.player.uuid = '00000000-0000-0000-0000-000000000000'
 
 		self.d_x = 0
 		self.d_y = 0
@@ -88,13 +97,13 @@ class Game:
 		self.m_tile_x = 0
 		self.m_tile_y = 0
 
-		self.x = 4
-		self.y = 4
+		#self.player.x = 4
+		#self.player.y = 4
 
 		self.images = {}
 
-		self.stats = {'active': True}
-		self.stats_max = {}
+		#self.player.stats = {'active': True}
+		#self.player.stats_max = {}
 
 		self.bars = {}
 		self.bar_width = 60
@@ -162,8 +171,8 @@ class Game:
 		self.mods = loader.load_mods()
 		for mod in self.mods:
 			print("{} v.{}: {}".format(mod.name, mod.version, mod.description))
-			self.stats.update(mod.stats)
-			self.stats_max.update(mod.stats_max)
+			self.player.stats.update(mod.stats)
+			self.player.stats_max.update(mod.stats_max)
 			self.bars.update(mod.bars)
 			self.images.update(mod.images)
 			self.tile_classes.update(mod.tile_classes)
@@ -185,19 +194,19 @@ class Game:
 		self.world.save_as(world_name)
 
 	def tile_to_screen(self, tile_x, tile_y, center_x=None, center_y=None):
-		if (center_x == None): center_x = self.x
-		if (center_y == None): center_y = self.y
+		if (center_x == None): center_x = self.player.x
+		if (center_y == None): center_y = self.player.y
 		return (screen_center_x - TILE_WIDTH // 2 + (tile_x - center_x) * TILE_WIDTH,
 				screen_center_y - TILE_WIDTH // 2 + (tile_y - center_y) * TILE_WIDTH)
 
 	def screen_to_tile(self, screen_x, screen_y, center_x=None, center_y=None):
-		if (center_x == None): center_x = self.x
-		if (center_y == None): center_y = self.y
+		if (center_x == None): center_x = self.player.x
+		if (center_y == None): center_y = self.player.y
 		return ((screen_x - screen_center_x + TILE_WIDTH // 2) // TILE_WIDTH + center_x,
 				(screen_y - screen_center_y + TILE_WIDTH // 2) // TILE_WIDTH + center_y)
 
 	def calc_fov(self):
-		self.fov_map = get_fov(self.world.tile_map, self.x, self.y, self.fov_radius)
+		self.fov_map = get_fov(self.world.tile_map, self.player.x, self.player.y, self.fov_radius)
 
 	def update_mouse_tile_pos(self):
 		self.m_tile_x, self.m_tile_y = self.screen_to_tile(*pygame.mouse.get_pos())
@@ -212,8 +221,8 @@ class Game:
 	def change_pos(self, d_x, d_y):
 		if (self.connected):
 			self.client.change_pos(d_x, d_y)
-		self.x += d_x
-		self.y += d_y
+		self.player.x += d_x
+		self.player.y += d_y
 		self.calc_fov()
 		self.update_mouse_tile_pos()
 
@@ -269,7 +278,7 @@ class Game:
 	def draw_stats(self):
 		for bar, stat_name in enumerate(self.bars):
 			for i in range(self.bars[stat_name]['max']):
-				if (i < self.stats[stat_name]):
+				if (i < self.player.stats[stat_name]):
 					screen.fill(self.bars[stat_name]['color'], (self.bar_x_offset + i * self.bar_width, \
 																self.bar_y_offset + self.bar_sep * bar, \
 																self.bar_width, self.bar_height))
@@ -280,7 +289,7 @@ class Game:
 
 	def draw_objects(self):
 		for obj in self.world.objects:
-			if (obj != self.uuid and self.fov_map[self.world.objects[obj].y][self.world.objects[obj].x]):
+			if (obj != self.player.uuid and self.fov_map[self.world.objects[obj].y][self.world.objects[obj].x]):
 				self.draw_image(self.world.objects[obj].image, self.world.objects[obj].x, self.world.objects[obj].y)
 		screen.blit(self.images['default:player'], (screen_center_x - TILE_WIDTH // 2, screen_center_y - TILE_WIDTH // 2))
 
@@ -298,13 +307,13 @@ class Game:
 		screen.fill(BG_COLOR)
 
 		if (self.d_x != 0 or self.d_y != 0):
-			new_x = self.x + self.d_x
-			new_y = self.y + self.d_y
-			if (not self.world.is_outside(new_x, new_y) and self.stats['active']):
+			new_x = self.player.x + self.d_x
+			new_y = self.player.y + self.d_y
+			if (not self.world.is_outside(new_x, new_y) and self.player.stats['active']):
 				self.world.get_tile(new_x, new_y).on_try_to_step(self)
 				if (not self.world.get_tile(new_x, new_y).is_wall):
 					self.change_pos(self.d_x, self.d_y)
-					self.world.get_tile(self.x, self.y).on_step(self)
+					self.world.get_tile(self.player.x, self.player.y).on_step(self)
 			self.d_x, self.d_y = 0, 0
 
 		self.draw_tile_map()
@@ -312,7 +321,7 @@ class Game:
 		if (self.state == 'normal'):
 			self.draw_image('default:selection', self.m_tile_x, self.m_tile_y)
 		#if (self.m_tile_x != None and self.m_tile_y != None):
-		#	for tile in (line(self.x, self.y, self.m_tile_x, self.m_tile_y)):
+		#	for tile in (line(self.player.x, self.player.y, self.m_tile_x, self.m_tile_y)):
 		#		self.draw_small_block(WHITE, *self.tile_to_screen(*tile))
 
 		self.draw_stats()
@@ -435,8 +444,8 @@ class Game:
 			self.connected = False
 			self.client.connection.Close()
 			self.load_world('default_world')
-			self.x = 4
-			self.y = 4
+			self.player.x = 4
+			self.player.y = 4
 			self.calc_fov()
 			self.add_message('!> disconnected from server', color=YELLOW)
 
@@ -479,10 +488,10 @@ class Game:
 
 	def command_nickname(self, *args):
 		if (len(args) == 2):
-			self.nickname = args[1]
-			self.add_message(f'Your nickname - "{self.nickname}"')
+			self.player.nickname = args[1]
+			self.add_message(f'Your nickname - "{self.player.nickname}"')
 		else:
-			self.add_message(f'Your nickname - "{self.nickname}"')
+			self.add_message(f'Your nickname - "{self.player.nickname}"')
 			self.add_message('Usage: /nick <new nickname>', color=YELLOW)
 
 	def command_load_world(self, *args):

@@ -1,6 +1,6 @@
 from uuid import uuid4
 
-class Object:
+class BaseObject:
 	def __init__(self, *args):
 		if (len(args) == 1 and type(args[0]) == dict):
 			self.from_dict(args[0])
@@ -18,12 +18,11 @@ class Object:
 				'uuid': self.uuid}
 
 	def from_dict(self, d):
-		self.id = d['id']
-		self.x = d['x']
-		self.y = d['y']
-		self.uuid = d['uuid']
+		for attr in d:
+			setattr(self, attr, d[attr])
 
-class Player(Object):
+
+class Player(BaseObject):
 	def __init__(self, *args):
 		super().__init__(*args)
 		if (type(args[0]) == dict):
@@ -31,14 +30,13 @@ class Player(Object):
 		else:
 			self.nickname = 'player'
 			self.stats = {'active': True}
-			self.max_stats = {}
+			self.stats_max = {}
 			self.inventory = []
+		self.image = 'default:player'
 
-	def to_dict():
+	def to_dict(self):
 		d = super().to_dict()
-		d.update({'nickname': self.nickname})
+		d.update({'nickname': self.nickname,
+					'stats': self.stats})
 		return d
 
-	def from_dict(self, d):
-		super().from_dict(d)
-		self.nickname = d['nickname']
