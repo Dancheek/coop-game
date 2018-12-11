@@ -17,7 +17,6 @@ import world
 
 BG_COLOR = (37, 37, 37)
 EMPTY_COLOR = (50, 50, 50)
-WHITE = (255, 255, 255)
 YELLOW = (255, 255, 0)
 RED = (255, 50, 70)
 
@@ -58,7 +57,7 @@ MAGIC_COLORS = {FIRE_MAGIC: FIRE_COLOR,
 
 pygame.font.init()
 font = pygame.font.SysFont("consolas", 20)
-COORDS = ((0, -1), (-1, 0), (0, 1), (1, 0))
+DIRECTIONS = ((0, -1), (-1, 0), (0, 1), (1, 0))
 
 def fill_alpha(color, alpha, rect=None):
 	screen.fill(tuple(255 * (1 - alpha) for i in range(3)), rect, pygame.BLEND_MULT)
@@ -80,6 +79,8 @@ class Game:
 		self.connected = False
 		self.connecting = False
 
+		self.debug_screen_active = False
+
 		self.player = Player({"id":			"default:player",
 								"nickname": 'player',
 								"stats":	{'active': True},
@@ -88,22 +89,13 @@ class Game:
 								"y":		4,
 								'uuid':		'00000000-0000-0000-0000-000000000000'})
 
-		#self.nickname = 'player'
-		#self.player.uuid = '00000000-0000-0000-0000-000000000000'
-
 		self.d_x = 0
 		self.d_y = 0
 
 		self.m_tile_x = 0
 		self.m_tile_y = 0
 
-		#self.player.x = 4
-		#self.player.y = 4
-
 		self.images = {}
-
-		#self.player.stats = {'active': True}
-		#self.player.stats_max = {}
 
 		self.bars = {}
 		self.bar_width = 60
@@ -139,13 +131,14 @@ class Game:
 		api.object_classes = self.object_classes
 
 		self.load_world('default_world')
+		self.world.objects[self.player.uuid] = self.player
 
 		self.add_message('press ENTER to open chat', color=YELLOW)
 		self.add_message('============= COMMANDS =============')
-		self.add_message('/c <ip>          - connect to server', color=(127, 127, 127))
-		self.add_message('/q               - abort connection', color=(127, 127, 127))
-		self.add_message('/nick <nickname> - change nickname', color=(127, 127, 127))
-		self.add_message('/help            - available commands', color=(127, 127, 127))
+		self.add_message('/c <ip>          - connect to server', color=api.GREY)
+		self.add_message('/q               - abort connection', color=api.GREY)
+		self.add_message('/nick <nickname> - change nickname', color=api.GREY)
+		self.add_message('/help            - available commands', color=api.GREY)
 		self.add_message('====================================')
 
 	def toggle_fullscreen(self):
@@ -183,6 +176,7 @@ class Game:
 
 	def load_world_from_dict(self, tile_map):
 		self.world = world.World(tile_map)
+		api.world = self.world
 		self.calc_fov()
 
 	def load_world(self, world_name):
@@ -211,7 +205,7 @@ class Game:
 	def update_mouse_tile_pos(self):
 		self.m_tile_x, self.m_tile_y = self.screen_to_tile(*pygame.mouse.get_pos())
 
-	def add_message(self, text, color=WHITE, player=None):
+	def add_message(self, text, color=api.WHITE, player=None):
 		self.messages.append({'text': text,
 								'color': color,
 								'time': sys_time()})
@@ -233,7 +227,7 @@ class Game:
 			self.add_message("casted: {}, x: {}, y: {}".format(magic, x, y))
 		self.calc_fov()
 
-	def send_message(self, text, color=WHITE):
+	def send_message(self, text, color=api.WHITE):
 		if (text == '/q'):
 			self.exec_chat_command('q')
 		elif (not self.connected and text[0] == '/'):
@@ -259,6 +253,24 @@ class Game:
 
 	# ----------- screen rendering -----------
 
+	def draw_debug_screen(self):
+		debug_info = ["x: {:4}".format(self.player.x),
+						'y: {:4}'.format(self.player.y),
+						'm_tile_x: {:4}'.format(self.m_tile_x),
+						'm_tile_y: {:4}'.format(self.m_tile_y),
+						'==============']
+		if (self.world.is_outside(self.m_tile_x, self.m_tile_y)):
+			debug_info.append('outside of map')
+		else:
+			if (self.fov_map[self.m_tile_y][self.m_tile_x]):
+				debug_info.append('id: {}'.format(self.world.get_tile(self.m_tile_x, self.m_tile_y).id))
+			else:
+				debug_info.append('not in FOV')
+
+		for i, info in enumerate(debug_info):
+			screen.blit(font.render(info, 1, api.WHITE), (screen_size[0] - font.size(info)[0] - 10, 10 + font.size(info)[1]*i))
+		#screen.blit(font.render('y: {:3}'.format(self.player.y), 1, api.WHITE), (screen_size[0] - 70, 30))
+
 	def draw_image(self, image_id, x, y):
 		screen.blit(self.images[image_id], self.tile_to_screen(x, y))
 
@@ -277,13 +289,13 @@ class Game:
 
 	def draw_stats(self):
 		for bar, stat_name in enumerate(self.bars):
-			for i in range(self.bars[stat_name]['max']):
-				if (i < self.player.stats[stat_name]):
-					screen.fill(self.bars[stat_name]['color'], (self.bar_x_offset + i * self.bar_width, \
+			for bar_max_value in range(self.bars[stat_name]['max']):
+				if (bar_max_value < self.player.get_stat(stat_name)):
+					screen.fill(self.bars[stat_name]['color'], (self.bar_x_offset + bar_max_value * self.bar_width, \
 																self.bar_y_offset + self.bar_sep * bar, \
 																self.bar_width, self.bar_height))
 				else:
-					screen.fill(EMPTY_COLOR, (self.bar_x_offset + i * self.bar_width, \
+					screen.fill(EMPTY_COLOR, (self.bar_x_offset + bar_max_value * self.bar_width, \
 												self.bar_y_offset + self.bar_sep * bar, \
 												self.bar_width, self.bar_height))
 
@@ -303,26 +315,28 @@ class Game:
 	# --------------- main loop ----------------
 
 	def main(self):
-		self.clock.tick(60)
+		api.delta_time = self.clock.tick(60)
 		screen.fill(BG_COLOR)
 
 		if (self.d_x != 0 or self.d_y != 0):
 			new_x = self.player.x + self.d_x
 			new_y = self.player.y + self.d_y
-			if (not self.world.is_outside(new_x, new_y) and self.player.stats['active']):
+			if (not self.world.is_outside(new_x, new_y) and self.player.get_stat('active')):
 				self.world.get_tile(new_x, new_y).on_try_to_step(self)
 				if (not self.world.get_tile(new_x, new_y).is_wall):
 					self.change_pos(self.d_x, self.d_y)
 					self.world.get_tile(self.player.x, self.player.y).on_step(self)
 			self.d_x, self.d_y = 0, 0
 
+		self.world.objects_update()
+
 		self.draw_tile_map()
 		self.draw_objects()
 		if (self.state == 'normal'):
 			self.draw_image('default:selection', self.m_tile_x, self.m_tile_y)
-		#if (self.m_tile_x != None and self.m_tile_y != None):
-		#	for tile in (line(self.player.x, self.player.y, self.m_tile_x, self.m_tile_y)):
-		#		self.draw_small_block(WHITE, *self.tile_to_screen(*tile))
+
+		if (self.debug_screen_active):
+			self.draw_debug_screen()
 
 		self.draw_stats()
 
@@ -405,6 +419,8 @@ class Game:
 						pass # some drag'n'drop
 
 				if (e.type == pygame.KEYDOWN):
+					if (e.key == pygame.K_F3):
+						self.debug_screen_active = not self.debug_screen_active
 					if (e.key == pygame.K_TAB):
 						self.state = 'player_menu'
 					if (e.key == pygame.K_RETURN):
@@ -414,13 +430,13 @@ class Game:
 						self.text_input.text = '/'
 						self.text_input.cursor_pos = 1
 					if (e.key == pygame.K_w):
-						self.d_x, self.d_y = COORDS[0]
+						self.d_x, self.d_y = DIRECTIONS[0]
 					if (e.key == pygame.K_a):
-						self.d_x, self.d_y = COORDS[1]
+						self.d_x, self.d_y = DIRECTIONS[1]
 					if (e.key == pygame.K_s):
-						self.d_x, self.d_y = COORDS[2]
+						self.d_x, self.d_y = DIRECTIONS[2]
 					if (e.key == pygame.K_d):
-						self.d_x, self.d_y = COORDS[3]
+						self.d_x, self.d_y = DIRECTIONS[3]
 					if (e.key == pygame.K_1):
 						self.magic = FIRE_MAGIC
 					if (e.key == pygame.K_2):
@@ -433,8 +449,6 @@ class Game:
 			self.send_message('!> connecting to {}:{}...'.format(host, port), color=YELLOW)
 			self.client = Client(self, host, port)
 			self.connecting = True
-			#self.send_message('!> connection refused')
-			#self.connected = False
 
 	def disconnect(self):
 		if (self.connecting):

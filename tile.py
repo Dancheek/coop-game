@@ -5,9 +5,8 @@ class Tile:
 		if (len(args) == 1 and type(args[0]) == dict):
 			self.from_dict(args[0])
 		else:
-			self.id = args[0]
-			self.x = args[1]
-			self.y = args[2]
+			self.x = args[0]
+			self.y = args[1]
 		self.image = self.id
 		self.is_wall = True
 		self.blocks_view = True
@@ -24,9 +23,6 @@ class Tile:
 	def from_dict(self, d):
 		for attr in d:
 			setattr(self, attr, d[attr])
-		#self.id = d['id']
-		#self.x = d['x']
-		#self.y = d['y']
 
 	def to_dict(self):
 		return {'id'	: self.id,

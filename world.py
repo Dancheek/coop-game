@@ -27,8 +27,8 @@ class World:
 		if (type(tile) == dict):
 			self.tile_map[y][x] = api.tile_classes[tile['id']](tile)
 		else:
-			self.tile_map[y][x] = api.tile_classes[tile](tile, x, y)
-		if (api.server != None):
+			self.tile_map[y][x] = api.tile_classes[tile](x, y)
+		if (api.on_server()):
 			api.server.update_tile(x, y)
 
 	def is_outside(self, x, y):
@@ -54,8 +54,13 @@ class World:
 	def spawn(self, x, y, object_id):
 		new_object = api.object_classes[object_id](object_id, x, y)
 		self.objects[new_object.uuid] = new_object
-		if (api.server != None):
+		if (api.on_server()):
 			api.server.send_objects()
+		return new_object.uuid
+
+	def objects_update(self):
+		for uuid in self.objects:
+			self.get_object(uuid).update()
 
 	# --------- world ---------
 

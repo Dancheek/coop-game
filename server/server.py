@@ -1,7 +1,7 @@
 from PodSixNet.Server import Server
 from PodSixNet.Channel import Channel
 from weakref import WeakKeyDictionary
-from time import sleep
+from time import sleep, time as sys_time
 from socket import gethostbyname, gethostname
 from _thread import start_new_thread
 from random import randint, choice
@@ -25,20 +25,15 @@ FREEZE_MAGIC = 3
 class ServerChannel(Channel, Player): # player representation on server
 	def __init__(self, *args, **kwargs):
 		Channel.__init__(self, *args, **kwargs)
-		Player.__init__(self, {"id":			"default:player",
-								"nickname": 'player',
+		Player.__init__(self, {"nickname": 'player',
 								"stats":	{'active': True},
 								"stats_max":{},
 								"x":		5,
 								"y":		2,
 								'uuid':		str(uuid4())})
 
-		#self.uuid = str(uuid4())
-		#self.nickname = "player_" + self.uuid
 		self.stats = self._server.player_stats.copy()
 		self.stats_max = self._server.player_stats_max.copy()
-		#self.x = 5
-		#self.y = 2
 
 	def send_self_init(self):
 		d = {'action': 'self_init',
@@ -50,17 +45,6 @@ class ServerChannel(Channel, Player): # player representation on server
 		d = {'action': 'self',
 				'dict': self.to_dict()}
 		self.Send(d)
-		#self.Send({"action": "self",
-		#			"uuid": self.uuid,
-		#			"x": self.x,
-		#			"y": self.y,
-		#			"stats": self.stats})
-
-	def set_pos(self, x, y):
-		self.x = x
-		self.y = y
-		self._server.world.objects[self.uuid].x = x
-		self._server.world.objects[self.uuid].y = y
 
 	# ------------- Network callbacks ---------------
 
@@ -150,6 +134,7 @@ class GameServer(Server):
 		self.load_world('default_world')
 		api.world = self.world
 
+		self.last_time = sys_time()
 		print("Server launched")
 		start_new_thread(self.command_input, ())
 
@@ -189,6 +174,14 @@ class GameServer(Server):
 	def update_tile(self, x, y):
 		self.send_to_all({"action": "set_tile", 'x': x, 'y': y, 'tile': self.world.get_tile(x, y).to_dict()})
 
+	def main(self):
+		self.world.objects_update()
+
+	def get_delta_time(self):
+		delta_time = (sys_time() - self.last_time) * 1000
+		self.last_time = sys_time()
+		return delta_time
+
 	# --------- console interaction -------------
 
 	def print_prompt(self):
@@ -203,8 +196,6 @@ class GameServer(Server):
 	def exec(self, command):
 		if (command == ''):
 			return
-		elif (command == "round"):
-			self.start_round()
 		else:
 			self.send_message_to_all(f"[SERVER] {command}", color=api.ORANGE)
 
@@ -219,12 +210,6 @@ class GameServer(Server):
 		print(f"[info] uuid:     {player.uuid}")
 		print(f"[info] nickname: {player.nickname}")
 		self.players[player] = True
-		#self.world.objects[player.uuid] = self.object_classes['default:player']({ \
-		#									"id":		"default:player",
-		#									"nickname": player.nickname,
-		#									"x":		player.x,
-		#									"y":		player.y,
-		#									'uuid':		player.uuid})
 		self.world.objects[player.uuid] = player
 		self.players_count += 1
 		player.send_self_init()
@@ -234,7 +219,7 @@ class GameServer(Server):
 
 		self.send_objects()
 
-		self.send_message_to_all('{} has joined'.format(player.nickname), color=(255, 255, 0))
+		self.send_message_to_all('{} has joined'.format(player.nickname), color=api.YELLOW)
 		print()
 
 		for mod in self.mods:
@@ -302,8 +287,9 @@ server = GameServer(localaddr=(host, int(port)))
 
 while (True):
 	server.Pump()
+	api.delta_time = server.get_delta_time()
 	for mod in server.mods:
 		if (hasattr(mod, 'server_main')):
 			mod.server_main()
-	#server.main()
+	server.main()
 	sleep(0.0001)

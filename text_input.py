@@ -8,7 +8,8 @@ class TextInput:
 	def __init__(self,	font,
 						init_str = '',
 						color = (255, 255, 255),
-						cursor_color = (255, 255, 255)):
+						cursor_color = (255, 255, 255),
+						on_enter_press = None):
 		self.font = font
 
 		self.color = color
