@@ -2,7 +2,7 @@
 # Module with some const and links to other objects
 
 WHITE = (255, 255, 255)
-GREY = (127, 127, 127)
+GREY = (167, 167, 167)
 YELLOW = (255, 255, 0)
 ORANGE = (255, 127, 0)
 RED = (255, 50, 70)
@@ -29,6 +29,10 @@ object_classes = None
 
 delta_time = 0
 
+
+def save_config():
+	global config
+	config.write(open('config', 'w'))
 
 def on_server():
 	global server

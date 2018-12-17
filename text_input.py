@@ -67,6 +67,7 @@ class TextInput:
 
 				elif (e.key == pygame.K_ESCAPE):
 					self.clear()
+					self.history_selected = len(self.history)
 
 				elif (e.key == pygame.K_RETURN):
 					if (self.text == ''):

@@ -28,4 +28,5 @@ def load_world(name):
 		return pickle.load(file)
 
 def save_world(world, name):
-	pickle.dump(world, open('worlds/' + name, 'wb'))
+	with open('worlds/' + name, 'wb') as file:
+		pickle.dump(world, file)

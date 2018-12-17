@@ -6,9 +6,8 @@ class BaseObject:
 		if (len(args) == 1 and type(args[0]) == dict):
 			self.from_dict(args[0])
 		else:
-			self.id = args[0]
-			self.x = args[1]
-			self.y = args[2]
+			self.x = args[0]
+			self.y = args[1]
 			self.uuid = str(uuid4())
 		self.image = 'default:object'
 
@@ -53,16 +52,20 @@ class Player(BaseObject):
 		if (type(args[0]) == dict):
 			self.from_dict(args[0])
 		else:
+			self.x = args[0]
+			self.y = args[1]
 			self.nickname = 'player'
 			self.stats = {'active': True}
 			self.stats_max = {}
 			self.inventory = []
+			self.in_hand = None
 		self.image = 'default:player'
 
 	def to_dict(self):
 		d = super().to_dict()
 		d.update({'nickname': self.nickname,
-					'stats': self.stats})
+					'stats': self.stats,
+					'in_hand': self.in_hand})
 		return d
 
 	def set_pos(self, x, y):

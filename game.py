@@ -3,6 +3,7 @@ from sys import exit
 from time import time as sys_time
 from PodSixNet.Connection import connection
 from socket import gethostname, gethostbyname
+from configparser import ConfigParser
 import pygame
 
 from client import Client
@@ -17,8 +18,8 @@ import world
 
 BG_COLOR = (37, 37, 37)
 EMPTY_COLOR = (50, 50, 50)
-YELLOW = (255, 255, 0)
-RED = (255, 50, 70)
+#YELLOW = (255, 255, 0)
+#RED = (255, 50, 70)
 
 #RED = (234, 22, 55)
 #BLUE = (23, 95, 232)
@@ -81,13 +82,10 @@ class Game:
 
 		self.debug_screen_active = False
 
-		self.player = Player({"id":			"default:player",
-								"nickname": 'player',
-								"stats":	{'active': True},
-								"stats_max":{},
-								"x":		4,
-								"y":		4,
-								'uuid':		'00000000-0000-0000-0000-000000000000'})
+		self.player = Player(1, 1)
+		self.player.uuid = '00000000-0000-0000-0000-000000000000'
+
+		self.read_config()
 
 		self.d_x = 0
 		self.d_y = 0
@@ -131,13 +129,13 @@ class Game:
 		api.object_classes = self.object_classes
 
 		self.load_world('default_world')
-		self.world.objects[self.player.uuid] = self.player
 
-		self.add_message('press ENTER to open chat', color=YELLOW)
+		self.add_message('press ENTER to open chat', color=api.YELLOW)
 		self.add_message('============= COMMANDS =============')
 		self.add_message('/c <ip>          - connect to server', color=api.GREY)
 		self.add_message('/q               - abort connection', color=api.GREY)
 		self.add_message('/nick <nickname> - change nickname', color=api.GREY)
+		self.add_message('/exit            - exit from game', color=api.GREY)
 		self.add_message('/help            - available commands', color=api.GREY)
 		self.add_message('====================================')
 
@@ -174,14 +172,31 @@ class Game:
 		for img in self.images:
 			self.images[img] = image.from_str(self.images[img])
 
-	def load_world_from_dict(self, tile_map):
+	def read_config(self):
+		config = ConfigParser()
+		config.read('config')
+		api.config = config
+		try:
+			self.player.nickname = api.config['player']['nickname']
+		except KeyError:
+			config['player'] = {}
+			config['player']['nickname'] = 'player'
+			api.save_config()
+
+	def load_world_from_dict(self, tile_map): # from server
 		self.world = world.World(tile_map)
 		api.world = self.world
 		self.calc_fov()
 
-	def load_world(self, world_name):
+	def load_world(self, world_name): # manually
 		self.world = world.load(world_name)
 		api.world = self.world
+		if (self.player.nickname in self.world.players):
+			player_dict = self.world.players[self.player.nickname]
+			self.player.from_dict(player_dict)
+			self.world.objects[self.player.uuid] = self.player
+		else:
+			self.world.add_player(self.player)
 		self.calc_fov()
 
 	def save_world(self, world_name):
@@ -241,7 +256,7 @@ class Game:
 
 	def exec_chat_command(self, text):
 		if (text.split()[0] in self.chat_commands):
-			self.chat_commands[text.split()[0]](*text.split())
+			self.chat_commands[text.split()[0]](*text.split(), player=self.player)
 		else:
 			self.add_message('command not found: ' + text.split()[0])
 
@@ -254,18 +269,25 @@ class Game:
 	# ----------- screen rendering -----------
 
 	def draw_debug_screen(self):
-		debug_info = ["x: {:4}".format(self.player.x),
-						'y: {:4}'.format(self.player.y),
-						'm_tile_x: {:4}'.format(self.m_tile_x),
-						'm_tile_y: {:4}'.format(self.m_tile_y),
+		debug_info = [f"x: {self.player.x:4}",
+						f'y: {self.player.y:4}',
+						f'm_tile_x: {self.m_tile_x:4}',
+						f'm_tile_y: {self.m_tile_y:4}',
 						'==============']
 		if (self.world.is_outside(self.m_tile_x, self.m_tile_y)):
 			debug_info.append('outside of map')
 		else:
 			if (self.fov_map[self.m_tile_y][self.m_tile_x]):
-				debug_info.append('id: {}'.format(self.world.get_tile(self.m_tile_x, self.m_tile_y).id))
+				debug_info.append(f'id: {self.world.get_tile(self.m_tile_x, self.m_tile_y).id}')
 			else:
 				debug_info.append('not in FOV')
+
+		obj = self.world.get_object_by_pos(self.m_tile_x, self.m_tile_y)
+		if (obj != None):
+			debug_info.append('==============')
+			d = obj.to_dict()
+			for i in d:
+				debug_info.append(f'{i}: {d[i]}')
 
 		for i, info in enumerate(debug_info):
 			screen.blit(font.render(info, 1, api.WHITE), (screen_size[0] - font.size(info)[0] - 10, 10 + font.size(info)[1]*i))
@@ -446,76 +468,78 @@ class Game:
 
 	def connect(self, host, port):
 		if (not self.connected):
-			self.send_message('!> connecting to {}:{}...'.format(host, port), color=YELLOW)
+			self.send_message('!> connecting to {}:{}...'.format(host, port), color=api.YELLOW)
 			self.client = Client(self, host, port)
 			self.connecting = True
 
 	def disconnect(self):
 		if (self.connecting):
 			self.connecting = False
-			self.add_message('!> aborted', color=RED)
+			self.add_message('!> aborted', color=api.RED)
 		elif (self.connected):
 			self.connected = False
 			self.client.connection.Close()
 			self.load_world('default_world')
-			self.player.x = 4
-			self.player.y = 4
+			self.world.objects[self.player.uuid] = self.player
 			self.calc_fov()
-			self.add_message('!> disconnected from server', color=YELLOW)
+			self.add_message('!> disconnected from server', color=api.YELLOW)
 
 	def on_connect(self):
-		self.send_message('!> connected', color=YELLOW)
+		self.send_message('!> connected', color=api.YELLOW)
 		self.connecting = False
 		self.connected = True
 
 	def on_disconnect(self):
 		self.connecting = False
 		self.connected = False
-		self.add_message('!> disconnected', color=YELLOW)
+		self.add_message('!> disconnected', color=api.YELLOW)
+		self.load_world('default_world')
 
 	# ------------- chat commands --------------
 
-	def command_connect(self, *args):
+	def command_connect(self, *args, player=None):
 		if (len(args) == 1):
 			self.connect(g_localhost, g_port)
 		elif (len(args) == 2):
 			self.connect(args[1], g_port)
 		elif (len(args) == 3):
 			if (not args[2].isdigit()):
-				self.add_message('port must be a number', color=RED)
+				self.add_message('port must be a number', color=api.RED)
 			else:
 				self.connect(args[1], int(args[2]))
 		else:
-			self.add_message('Usage: /c <host> <port>', color=YELLOW)
+			self.add_message('Usage: /c <host> <port>', color=api.RED)
 
-	def command_exit(self, *args):
+	def command_exit(self, *args, player=None):
 		exit()
 
-	def command_help(self, *args):
+	def command_help(self, *args, player=None):
 		self.add_message('Available commands:')
 		for command in self.chat_commands:
 			self.add_message(command)
 
-	def command_leave(self, *args):
+	def command_leave(self, *args, player=None):
 		if (self.connecting or self.connected):
 			self.disconnect()
 
-	def command_nickname(self, *args):
+	def command_nickname(self, *args, player=None):
 		if (len(args) == 2):
 			self.player.nickname = args[1]
 			self.add_message(f'Your nickname - "{self.player.nickname}"')
+			api.config['player']['nickname'] = args[1]
+			api.save_config()
 		else:
 			self.add_message(f'Your nickname - "{self.player.nickname}"')
-			self.add_message('Usage: /nick <new nickname>', color=YELLOW)
+			self.add_message('Usage: /nick <new nickname>', color=api.RED)
 
-	def command_load_world(self, *args):
+	def command_load_world(self, *args, player=None):
 		if (len(args) != 2):
 			api.send_message('Usage: /load_world <world name>', color=api.RED)
 		else:
 			api.game.load_world(args[1])
 			api.send_message(f'World "{args[1]}" loaded', color=api.YELLOW)
 
-	def command_save_world(self, *args):
+	def command_save_world(self, *args, player=None):
 		if (len(args) != 2):
 			api.send_message('Usage: /save_world <world name>', color=api.RED)
 		else:

@@ -4,6 +4,7 @@ import loader
 
 class World:
 	def __init__(self, world):
+		self.players = world['players']
 		self.objects_from_dict(world['objects'])
 		self.tile_map_from_dict(world['tile_map'])
 
@@ -51,8 +52,15 @@ class World:
 	def get_object(self, uuid):
 		return self.objects[uuid]
 
+	def get_object_by_pos(self, x, y):
+		for uuid in self.objects:
+			obj = self.get_object(uuid)
+			if (obj.x == x and obj.y == y):
+				return obj
+		return None
+
 	def spawn(self, x, y, object_id):
-		new_object = api.object_classes[object_id](object_id, x, y)
+		new_object = api.object_classes[object_id] (x, y)
 		self.objects[new_object.uuid] = new_object
 		if (api.on_server()):
 			api.server.send_objects()
@@ -62,10 +70,20 @@ class World:
 		for uuid in self.objects:
 			self.get_object(uuid).update()
 
+	def add_player(self, player):
+		self.players[player.nickname] = player.to_dict()
+		self.objects[player.uuid] = player
+
 	# --------- world ---------
 
 	def to_dict(self):
-		return {'tile_map': self.tile_map_to_dict(),
+		for uuid in self.objects:
+			obj = self.get_object(uuid)
+			if (obj.id == 'default:player'):
+				self.players[obj.nickname] = obj.to_dict()
+
+		return {'players': self.players,
+				'tile_map': self.tile_map_to_dict(),
 				'objects': self.objects_to_dict()}
 
 	def save_as(self, name):

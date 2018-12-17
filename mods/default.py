@@ -161,7 +161,6 @@ def command_spawn(*args, player=None):
 		except KeyError:
 			api.send_message(f'Invalid id - {args[3]}', player=player, color=api.RED)
 
-
 def command_settile(*args, player=None):
 	if (len(args) != 4):
 		api.send_message('Usage: /settile <x> <y> <tile_id>', color=api.RED, player=player)
@@ -174,7 +173,14 @@ def command_hit(*args, player=None):
 	for uuid in api.world.objects:
 		api.world.objects[uuid].hit()
 
+def command_tp(*args, player=None):
+	if (len(args) != 3):
+		api.send_message('Usage: /tp <x> <y>', color=api.RED, player=player)
+	else:
+		player.set_pos(int(args[1]), int(args[2]))
+
 chat_commands = {'spawn': command_spawn,
 					'settile': command_settile,
-					'hit': command_hit}
+					'hit': command_hit,
+					'tp': command_tp}
 

@@ -1,3 +1,4 @@
+from sys import exit
 from PodSixNet.Server import Server
 from PodSixNet.Channel import Channel
 from weakref import WeakKeyDictionary
@@ -25,12 +26,7 @@ FREEZE_MAGIC = 3
 class ServerChannel(Channel, Player): # player representation on server
 	def __init__(self, *args, **kwargs):
 		Channel.__init__(self, *args, **kwargs)
-		Player.__init__(self, {"nickname": 'player',
-								"stats":	{'active': True},
-								"stats_max":{},
-								"x":		5,
-								"y":		2,
-								'uuid':		str(uuid4())})
+		Player.__init__(self, 5, 2)
 
 		self.stats = self._server.player_stats.copy()
 		self.stats_max = self._server.player_stats_max.copy()
@@ -132,7 +128,6 @@ class GameServer(Server):
 		api.tile_classes = self.tile_classes
 
 		self.load_world('default_world')
-		api.world = self.world
 
 		self.last_time = sys_time()
 		print("Server launched")
@@ -151,6 +146,7 @@ class GameServer(Server):
 
 	def load_world(self, name):
 		self.world = world.load(name)
+		api.world = self.world
 
 	def get_player(self, uuid):
 		for player in self.players:
@@ -196,6 +192,13 @@ class GameServer(Server):
 	def exec(self, command):
 		if (command == ''):
 			return
+		elif (command == 'save'):
+			self.world.save_as('default_world')
+		elif (command == 'objs'):
+			print(self.world.objects)
+		elif (command == 'exit'):
+			self.world.save_as('default_world')
+			print('exiting')
 		else:
 			self.send_message_to_all(f"[SERVER] {command}", color=api.ORANGE)
 
@@ -210,7 +213,14 @@ class GameServer(Server):
 		print(f"[info] uuid:     {player.uuid}")
 		print(f"[info] nickname: {player.nickname}")
 		self.players[player] = True
-		self.world.objects[player.uuid] = player
+
+		if (player.nickname in self.world.players):
+			player_dict = self.world.players[player.nickname]
+			player.from_dict(player_dict)
+			self.world.objects[player.uuid] = player
+		else:
+			self.world.add_player(player)
+
 		self.players_count += 1
 		player.send_self_init()
 
@@ -229,11 +239,9 @@ class GameServer(Server):
 	def del_player(self, player):
 		print(f"{player.nickname} {player.addr} deleted")
 		self.players_count -= 1
+		self.world.players[player.nickname] = player.to_dict()
 		del self.players[player]
-		for obj_id in self.world.objects:
-			if (obj_id == player.uuid):
-				del self.world.objects[obj_id]
-				break
+		del self.world.objects[player.uuid]
 		self.send_to_all({'action': 'del_object',
 						'object': player.uuid})
 		self.send_message_to_all(f'{player.nickname} has leaved', color=(255, 255, 0))
