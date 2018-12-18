@@ -77,17 +77,21 @@ class World:
 	# --------- world ---------
 
 	def to_dict(self):
-		for uuid in self.objects:
-			obj = self.get_object(uuid)
-			if (obj.id == 'default:player'):
-				self.players[obj.nickname] = obj.to_dict()
-
 		return {'players': self.players,
 				'tile_map': self.tile_map_to_dict(),
 				'objects': self.objects_to_dict()}
 
 	def save_as(self, name):
-		loader.save_world(self.to_dict(), name)
+		world_dict = self.to_dict()
+
+		for uuid in world_dict['objects']:
+			obj = self.get_object(uuid)
+			if (obj.id == 'default:player'):
+				world_dict['players'][obj.nickname] = obj.to_dict()
+
+		world_dict['objects'] = {uuid: world_dict['objects'][uuid] for uuid in world_dict['objects'] if world_dict['objects'][uuid]['id'] != 'default:player'}
+
+		loader.save_world(world_dict, name)
 
 
 def load(world_name):
