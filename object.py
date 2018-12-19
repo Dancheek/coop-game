@@ -52,8 +52,8 @@ class Player(BaseObject):
 		if (type(args[0]) == dict):
 			self.from_dict(args[0])
 		else:
-			self.x = args[0]
-			self.y = args[1]
+			self.x = None # will be changed by world's spawn point
+			self.y = None # ======================================
 			self.nickname = 'player'
 			self.stats = {'active': True}
 			self.stats_max = {}

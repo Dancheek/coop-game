@@ -26,7 +26,7 @@ FREEZE_MAGIC = 3
 class ServerChannel(Channel, Player): # player representation on server
 	def __init__(self, *args, **kwargs):
 		Channel.__init__(self, *args, **kwargs)
-		Player.__init__(self, 5, 2)
+		Player.__init__(self, 0, 0)
 
 		self.stats = self._server.player_stats.copy()
 		self.stats_max = self._server.player_stats_max.copy()
@@ -196,6 +196,8 @@ class GameServer(Server):
 			self.world.save_as('default_world')
 		elif (command == 'objs'):
 			print(self.world.objects)
+		elif (command == 'players'):
+			print(self.world.players)
 		elif (command == 'exit'):
 			self.world.save_as('default_world')
 			print('exiting')

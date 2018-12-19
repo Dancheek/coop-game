@@ -82,7 +82,7 @@ class Game:
 
 		self.debug_screen_active = False
 
-		self.player = Player(1, 1)
+		self.player = Player(0, 0)
 		self.player.uuid = '00000000-0000-0000-0000-000000000000'
 
 		self.read_config()

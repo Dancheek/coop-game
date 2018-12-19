@@ -122,30 +122,6 @@ def get_fov(tile_map, cx, cy, r):
 				max_y += 1
 	return fov
 
-#def old_fov(tile_map, player_x, player_y, fov_radius, blocking_tiles = [1], start_angle = 0, end_angle = 360):
-#	height = len(tile_map)
-#	width = len(tile_map[0])
-#
-#	fov = [[0] * width for i in range(height)]
-#
-#	for i in range(start_angle, end_angle + 1):
-#		x = player_x
-#		y = player_y
-#
-#		ax = sintable[i]
-#		ay = costable[i]
-#
-#		for j in range(fov_radius):
-#			x += ax
-#			y += ay
-#
-#			if (x < 0 or y < 0 or x + 1 >= width or y + 1 >= height):
-#				break
-#			fov[int(round(y))][int(round(x))] = 1
-#			if (tile_map[int(round(y))][int(round(x))] in blocking_tiles):
-#				break
-#	if (player_x >= 0 and player_y >= 0): fov[player_y][player_x] = 1
-#	return fov
 
 def line(x1, y1, x2, y2):
 	points = []

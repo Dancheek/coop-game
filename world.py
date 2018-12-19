@@ -4,6 +4,7 @@ import loader
 
 class World:
 	def __init__(self, world):
+		self.spawn_point = world['spawn_point']
 		self.players = world['players']
 		self.objects_from_dict(world['objects'])
 		self.tile_map_from_dict(world['tile_map'])
@@ -73,11 +74,14 @@ class World:
 	def add_player(self, player):
 		self.players[player.nickname] = player.to_dict()
 		self.objects[player.uuid] = player
+		player.x = self.spawn_point[0]
+		player.y = self.spawn_point[1]
 
 	# --------- world ---------
 
 	def to_dict(self):
-		return {'players': self.players,
+		return {'spawn_point': self.spawn_point,
+				'players': self.players,
 				'tile_map': self.tile_map_to_dict(),
 				'objects': self.objects_to_dict()}
 
@@ -90,7 +94,6 @@ class World:
 				world_dict['players'][obj.nickname] = obj.to_dict()
 
 		world_dict['objects'] = {uuid: world_dict['objects'][uuid] for uuid in world_dict['objects'] if world_dict['objects'][uuid]['id'] != 'default:player'}
-
 		loader.save_world(world_dict, name)
 
 
