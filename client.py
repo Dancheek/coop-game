@@ -2,6 +2,7 @@ from PodSixNet.Connection import connection, ConnectionListener
 from time import sleep, time as sys_time
 from socket import gethostname, gethostbyname
 from fov import get_fov
+import api
 
 RED = (234, 22, 55)
 BLUE = (23, 95, 232)
@@ -47,23 +48,27 @@ class Client(ConnectionListener):
 	#	print('network:', data)
 
 	def Network_set_tile(self, data):
-		self.game.world.set_tile(data['x'], data['y'], data['tile'])
+		self.game.world.set_tile(data['x'], data['y'], data['tile']['id'], data['tile']['meta'])
 		self.game.calc_fov()
 
 	def Network_objects(self, data):
 		objs = data['objects']
 		for obj in objs:
 			if (obj in self.game.world.objects):
-				self.game.world.get_object(obj).from_dict(objs[obj])
+				api.world.get_object(obj).from_dict(objs[obj])
 			else:
-				self.game.world.objects[obj] = self.game.object_classes[objs[obj]['id']](objs[obj])
+				api.world.objects[obj] = api.object_classes[objs[obj]['id']](
+					objs[obj]['x'],
+					objs[obj]['y'],
+					objs[obj]['meta']
+				)
 
 	def Network_del_object(self, data):
 		del self.game.world.objects[data['object']]
 
 	def Network_self_init(self, data):
 		from object import Player
-		self.game.player = Player(data['dict'])
+		self.game.player.from_dict(data['dict'])
 
 	def Network_self(self, data):
 		self.game.player.from_dict(data['dict'])
@@ -75,8 +80,8 @@ class Client(ConnectionListener):
 	def Network_world(self, data):
 		self.game.load_world_from_dict(data['world'])
 
-	def Network_turn_based(self, data):
-		self.turn_based = data['turn_based']
+	def Network_open_form(self, data):
+		api.open_form(data['form_id'], data['storages'], self.game.player)
 
 	def Network_connected(self, data):
 		self.game.on_connect()
@@ -85,9 +90,9 @@ class Client(ConnectionListener):
 		if (self.game.connecting or self.game.connected):
 			self.game.connecting = False
 			if (type(data['error']) == ConnectionRefusedError):
-				self.game.send_message('[{}] {}'.format(data['error'].errno, data['error'].strerror), color=(255, 50, 70))
+				api.send_message('[{}] {}'.format(data['error'].errno, data['error'].strerror), color=(255, 50, 70))
 			else:
-				self.game.send_message('[{}] {}'.format(*data['error']), color=(255, 50, 70))
+				api.send_message('[{}] {}'.format(*data['error']), color=(255, 50, 70))
 			connection.Close()
 
 	def Network_disconnected(self, data):

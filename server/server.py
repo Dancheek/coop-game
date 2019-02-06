@@ -18,11 +18,6 @@ MAP_WIDTH = 20
 MAP_HEIGHT = 17
 WALLS_COUNT = 60
 
-EMPTY_TILE = 0
-WALL_TILE = 1
-FIRE_MAGIC = 2
-FREEZE_MAGIC = 3
-
 class ServerChannel(Channel, Player): # player representation on server
 	def __init__(self, *args, **kwargs):
 		Channel.__init__(self, *args, **kwargs)
@@ -52,8 +47,11 @@ class ServerChannel(Channel, Player): # player representation on server
 		new_x = self.x + data['d_x']
 		new_y = self.y + data['d_y']
 		if (self.stats['active']):
-			tile_updated = self._server.world.get_tile(new_x, new_y).on_try_to_step(self)
-			if (tile_updated):
+			new_tile = self._server.world.get_tile(new_x, new_y)
+			old_meta = new_tile.meta.copy()
+			if (new_tile.on_try_to_step != None):
+				new_tile.on_try_to_step(new_x, new_y, new_tile, self)
+			if (old_meta != new_tile.meta):
 				self._server.update_tile(new_x, new_y)
 
 			self.set_pos(new_x, new_y)
@@ -86,9 +84,12 @@ class ServerChannel(Channel, Player): # player representation on server
 			self._server.send_message_to_all(text)
 
 	def Network_interact(self, data):
-		tile_updated = self._server.world.get_tile(data['x'], data['y']).interact(self)
-		if (tile_updated):
-			self._server.update_tile(data['x'], data['y'])
+		tile = self._server.world.get_tile(data['x'], data['y'])
+		if (tile.on_interact != None):
+			old_meta = tile.meta.copy()
+			tile.on_interact(data['x'], data['y'], tile, self)
+			if (old_meta != tile.meta):
+				self._server.update_tile(data['x'], data['y'])
 
 	# ---------------------------------------------
 
@@ -115,21 +116,21 @@ class GameServer(Server):
 		self.player_stats = {'active': True}
 		self.player_stats_max = {}
 
-		self.tile_classes = {}
-		self.object_classes = {}
-
-		self.chat_commands = {'help': self.command_help}
+		self.chat_commands = api.chat_commands
+		api.register_chat_command('help', self.command_help)
 
 		self.players_count = 0
 
+		self.object_classes = api.object_classes
+		self.tile_classes = api.tile_classes
+
 		self.install_mods()
 
-		api.object_classes = self.object_classes
-		api.tile_classes = self.tile_classes
-
+		self.world = None
 		self.load_world('default_world')
 
 		self.last_time = sys_time()
+
 		print("Server launched")
 		start_new_thread(self.command_input, ())
 
@@ -140,9 +141,6 @@ class GameServer(Server):
 			print("{} v.{}: {}".format(mod.name, mod.version, mod.description))
 			self.player_stats.update(mod.stats)
 			self.player_stats_max.update(mod.stats_max)
-			self.tile_classes.update(mod.tile_classes)
-			self.object_classes.update(mod.object_classes)
-			self.chat_commands.update(mod.chat_commands)
 
 	def load_world(self, name):
 		self.world = world.load(name)
@@ -151,6 +149,11 @@ class GameServer(Server):
 	def get_player(self, uuid):
 		for player in self.players:
 			if (player.uuid == uuid): return player
+		return None
+
+	def get_player_by_name(self, name):
+		for player in self.players:
+			if (player.nickname == name): return player
 		return None
 
 	def next_player(self, player):
@@ -168,7 +171,8 @@ class GameServer(Server):
 		player.stats[stat_name] = value
 
 	def update_tile(self, x, y):
-		self.send_to_all({"action": "set_tile", 'x': x, 'y': y, 'tile': self.world.get_tile(x, y).to_dict()})
+		if (self.world != None):
+			self.send_to_all({"action": "set_tile", 'x': x, 'y': y, 'tile': self.world.get_tile(x, y).to_dict()})
 
 	def main(self):
 		self.world.objects_update()
@@ -194,6 +198,7 @@ class GameServer(Server):
 			return
 		elif (command == 'save'):
 			self.world.save_as('default_world')
+			print('saved')
 		elif (command == 'objs'):
 			print(self.world.objects)
 		elif (command == 'players'):
@@ -211,9 +216,17 @@ class GameServer(Server):
 
 	def add_player(self, player):
 		del self.waiting_for_join[player]
+
 		print(f"[info] channel:  {player.addr}")
-		print(f"[info] uuid:     {player.uuid}")
 		print(f"[info] nickname: {player.nickname}")
+
+		if (self.get_player_by_name(player.nickname) != None):
+			print(f'[error] player "{player.nickname}" already logged in')
+			self.send_message(f'[error] player "{player.nickname}" already logged in', color=api.RED, player=player)
+			self.Pump()
+			player.close()
+			return
+
 		self.players[player] = True
 
 		if (player.nickname in self.world.players):
@@ -222,6 +235,8 @@ class GameServer(Server):
 			self.world.objects[player.uuid] = player
 		else:
 			self.world.add_player(player)
+
+		print(f"[info] uuid:     {player.uuid}")
 
 		self.players_count += 1
 		player.send_self_init()
